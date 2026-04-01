@@ -54,6 +54,7 @@ export default function SignupPage() {
           username,
           username_changes_used: username !== suggested ? 1 : 0,
           neighborhood_id: neighborhood.id,
+          home_neighborhood_id: neighborhood.id,
           lat,
           lng,
           tier: 0, email: email

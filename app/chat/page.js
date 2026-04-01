@@ -3,11 +3,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { detectCurrentNeighborhood } from '@/lib/neighborhood'
 
 export default function ChatPage() {
   const router = useRouter()
   const [profile, setProfile] = useState(null)
+  const [homeNeighborhood, setHomeNeighborhood] = useState(null)
+  const [currentNeighborhood, setCurrentNeighborhood] = useState(null)
   const [rooms, setRooms] = useState([])
+  const [visitingRooms, setVisitingRooms] = useState([])
   const [activeRoom, setActiveRoom] = useState(null)
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -16,6 +20,7 @@ export default function ChatPage() {
   const [accent, setAccent] = useState('#3b82f6')
   const [hue, setHue] = useState(217)
   const [input2, setInput2] = useState('')
+  const [isVisiting, setIsVisiting] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => { loadProfile() }, [])
@@ -59,15 +64,32 @@ export default function ChatPage() {
       setAccent(prof.accent_color)
       setHue(hexToHue(prof.accent_color))
     }
-    await loadRooms(prof)
+
+    // Load home neighborhood
+    const { data: homeHood } = await supabase
+      .from('neighborhoods')
+      .select('*')
+      .eq('id', prof.home_neighborhood_id || prof.neighborhood_id)
+      .single()
+
+    setHomeNeighborhood(homeHood)
+    await loadRooms(prof, homeHood)
+
+    // Detect current location
+    const { hood: currentHood } = await detectCurrentNeighborhood()
+    if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
+      setCurrentNeighborhood(currentHood)
+      await loadVisitingRooms(currentHood)
+    }
+
     setLoading(false)
   }
 
-  async function loadRooms(prof) {
+  async function loadRooms(prof, hood) {
     const { data: allRooms } = await supabase
       .from('rooms')
       .select('*')
-      .eq('neighborhood_id', prof.neighborhood_id)
+      .eq('neighborhood_id', hood?.id || prof.neighborhood_id)
       .order('is_main', { ascending: false })
 
     const { data: memberships } = await supabase
@@ -87,6 +109,28 @@ export default function ChatPage() {
 
     setRooms(visible)
     if (visible.length > 0) setActiveRoom(visible[0])
+  }
+
+  async function loadVisitingRooms(hood) {
+    const { data: mainRoom } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('neighborhood_id', hood.id)
+      .eq('is_main', true)
+      .single()
+
+    if (mainRoom) setVisitingRooms([mainRoom])
+  }
+
+  async function refreshLocation() {
+    const { hood: currentHood } = await detectCurrentNeighborhood()
+    if (currentHood && currentHood.id !== (profile.home_neighborhood_id || profile.neighborhood_id)) {
+      setCurrentNeighborhood(currentHood)
+      await loadVisitingRooms(currentHood)
+    } else {
+      setCurrentNeighborhood(null)
+      setVisitingRooms([])
+    }
   }
 
   async function loadMessages(roomId) {
@@ -153,15 +197,13 @@ export default function ChatPage() {
     </div>
   )
 
+  const visiting = isVisiting && currentNeighborhood
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: 'sans-serif', position: 'relative', overflow: 'hidden' }}>
 
-      {/* Overlay */}
       {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }}
-        />
+        <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />
       )}
 
       {/* Sidebar */}
@@ -174,24 +216,26 @@ export default function ChatPage() {
       }}>
         <div style={{ padding: '24px 18px 14px', borderBottom: `1px solid ${accent}22` }}>
           <div style={{ fontWeight: 800, fontSize: 20, color: accent, letterSpacing: '-0.5px' }}>Dopechatz</div>
-          <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>{profile?.neighborhoods?.name}</div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+
+          {/* Home neighborhood rooms */}
+          <div style={{ padding: '8px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+            🏠 {homeNeighborhood?.name || 'Home'}
+          </div>
           {rooms.map(room => (
             <div
               key={room.id}
-              onClick={() => { setActiveRoom(room); setSidebarOpen(false) }}
+              onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
               style={{
-                padding: '13px 18px',
+                padding: '12px 18px',
                 cursor: 'pointer',
-                background: activeRoom?.id === room.id ? `${accent}18` : 'transparent',
-                borderLeft: activeRoom?.id === room.id ? `3px solid ${accent}` : '3px solid transparent',
+                background: activeRoom?.id === room.id && !isVisiting ? `${accent}18` : 'transparent',
+                borderLeft: activeRoom?.id === room.id && !isVisiting ? `3px solid ${accent}` : '3px solid transparent',
                 fontSize: 14,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: activeRoom?.id === room.id ? accent : '#aaa',
+                display: 'flex', alignItems: 'center', gap: 8,
+                color: activeRoom?.id === room.id && !isVisiting ? accent : '#aaa',
                 transition: 'all 0.15s ease'
               }}
             >
@@ -200,6 +244,33 @@ export default function ChatPage() {
               {room.is_main && <span style={{ fontSize: 10, color: accent, opacity: 0.5, marginLeft: 'auto' }}>★</span>}
             </div>
           ))}
+
+          {/* Visiting neighborhood rooms */}
+          {visitingRooms.length > 0 && (
+            <>
+              <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                📍 {currentNeighborhood?.name || 'Nearby'}
+              </div>
+              {visitingRooms.map(room => (
+                <div
+                  key={room.id}
+                  onClick={() => { setActiveRoom(room); setIsVisiting(true); setSidebarOpen(false) }}
+                  style={{
+                    padding: '12px 18px',
+                    cursor: 'pointer',
+                    background: activeRoom?.id === room.id && isVisiting ? `${accent}18` : 'transparent',
+                    borderLeft: activeRoom?.id === room.id && isVisiting ? `3px solid ${accent}` : '3px solid transparent',
+                    fontSize: 14,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    color: activeRoom?.id === room.id && isVisiting ? accent : '#aaa',
+                  }}
+                >
+                  <span>{room.name}</span>
+                  <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>visiting</span>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         <div style={{ padding: '14px 18px', borderTop: `1px solid ${accent}22` }}>
@@ -218,34 +289,27 @@ export default function ChatPage() {
 
           {showColorPicker && (
             <div style={{ marginBottom: 14 }}>
-              <div style={{
-                height: 10, borderRadius: 5, marginBottom: 8,
-                background: 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)'
-              }} />
-              <input
-                type="range"
-                min={0}
-                max={359}
-                value={hue}
-                onChange={e => handleHueChange(Number(e.target.value))}
-                style={{ width: '100%', accentColor: accent }}
-              />
+              <div style={{ height: 10, borderRadius: 5, marginBottom: 8, background: 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)' }} />
+              <input type="range" min={0} max={359} value={hue} onChange={e => handleHueChange(Number(e.target.value))} style={{ width: '100%', accentColor: accent }} />
             </div>
           )}
+
+          <button
+            onClick={refreshLocation}
+            style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}
+          >
+            📍 Refresh location
+          </button>
 
           {profile?.tier === 0 && (
             <button
               onClick={() => router.push('/upgrade')}
-              style={{
-                width: '100%', padding: '10px', background: accent,
-                color: '#000', border: 'none', borderRadius: 8,
-                fontWeight: 800, fontSize: 13, cursor: 'pointer',
-                marginBottom: 10
-              }}
+              style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}
             >
               Upgrade
             </button>
           )}
+
           <button
             onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
             style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -256,49 +320,23 @@ export default function ChatPage() {
       </div>
 
       {/* Top bar */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 14,
-        padding: '0 16px', height: 56,
-        borderBottom: `1px solid ${accent}22`,
-        background: '#111',
-        flexShrink: 0
-      }}>
-        {/* Hamburger — large tap target */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px', height: 56, borderBottom: `1px solid ${accent}22`, background: '#111', flexShrink: 0 }}>
         <button
           onClick={() => setSidebarOpen(v => !v)}
-          style={{
-            background: 'none', border: 'none', cursor: 'pointer',
-            padding: '10px 10px 10px 4px',
-            display: 'flex', flexDirection: 'column', gap: 5,
-            borderRadius: 8,
-            transition: 'opacity 0.15s'
-          }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 10px 10px 4px', display: 'flex', flexDirection: 'column', gap: 5, borderRadius: 8 }}
         >
-          <div style={{
-            width: 24, height: 2, background: accent,
-            borderRadius: 2,
-            transform: sidebarOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none',
-            transition: 'transform 0.25s ease'
-          }} />
-          <div style={{
-            width: 24, height: 2, background: accent,
-            borderRadius: 2,
-            opacity: sidebarOpen ? 0 : 1,
-            transition: 'opacity 0.2s ease'
-          }} />
-          <div style={{
-            width: 24, height: 2, background: accent,
-            borderRadius: 2,
-            transform: sidebarOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none',
-            transition: 'transform 0.25s ease'
-          }} />
+          <div style={{ width: 24, height: 2, background: accent, borderRadius: 2, transform: sidebarOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none', transition: 'transform 0.25s ease' }} />
+          <div style={{ width: 24, height: 2, background: accent, borderRadius: 2, opacity: sidebarOpen ? 0 : 1, transition: 'opacity 0.2s ease' }} />
+          <div style={{ width: 24, height: 2, background: accent, borderRadius: 2, transform: sidebarOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none', transition: 'transform 0.25s ease' }} />
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {activeRoom?.name}
           </div>
-          {activeRoom?.is_private && <div style={{ fontSize: 11, color: accent }}>Private</div>}
+          {isVisiting && currentNeighborhood && (
+            <div style={{ fontSize: 11, color: accent }}>📍 Visiting {currentNeighborhood.name}</div>
+          )}
         </div>
       </div>
 
@@ -309,6 +347,12 @@ export default function ChatPage() {
             <span style={{ fontWeight: 700, fontSize: 13, color: accent }}>
               {msg.profiles?.username}
             </span>
+            {msg.user_id !== profile?.id && isVisiting && (
+              <span style={{ fontSize: 10, color: '#555', marginLeft: 6 }}>local</span>
+            )}
+            {msg.user_id === profile?.id && isVisiting && (
+              <span style={{ fontSize: 10, color: accent, marginLeft: 6 }}>📍 visitor</span>
+            )}
             <span style={{ fontSize: 11, color: '#333', marginLeft: 8 }}>
               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -326,19 +370,10 @@ export default function ChatPage() {
               value={input2}
               onChange={e => setInput2(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendMessage()}
-              placeholder="Say something..."
-              style={{
-                flex: 1, padding: '11px 14px', fontSize: 15,
-                border: `1px solid ${accent}33`, borderRadius: 10,
-                background: '#1a1a1a', color: '#fff', outline: 'none'
-              }}
+              placeholder={isVisiting ? `Chatting in ${currentNeighborhood?.name}...` : 'Say something...'}
+              style={{ flex: 1, padding: '11px 14px', fontSize: 15, border: `1px solid ${accent}33`, borderRadius: 10, background: '#1a1a1a', color: '#fff', outline: 'none' }}
             />
-            <button onClick={sendMessage} style={{
-              padding: '11px 20px', background: accent,
-              color: '#000', border: 'none', borderRadius: 10,
-              cursor: 'pointer', fontWeight: 800, fontSize: 14,
-              flexShrink: 0
-            }}>
+            <button onClick={sendMessage} style={{ padding: '11px 20px', background: accent, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
               Send
             </button>
           </>

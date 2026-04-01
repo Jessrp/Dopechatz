@@ -75,10 +75,10 @@ export default function PreviewPage() {
           )}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href="/login" style={{ fontSize: 13, color: '#000', textDecoration: 'none', padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6 }}>
+          <a href="/login" style={{ fontSize: 13, color: '#fff', textDecoration: 'none', padding: '6px 12px', border: '1px solid #444', borderRadius: 6 }}>
             Log in
           </a>
-          <a href="/signup" style={{ fontSize: 13, color: '#fff', textDecoration: 'none', padding: '6px 12px', background: '#000', borderRadius: 6 }}>
+          <a href="/signup" style={{ fontSize: 13, color: '#000', textDecoration: 'none', padding: '6px 12px', background: '#fff', borderRadius: 6 }}>
             Sign up
           </a>
         </div>

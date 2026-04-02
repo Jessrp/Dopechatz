@@ -387,6 +387,14 @@ export default function ChatPage() {
             <div style={{ fontSize: 11, color: accent }}>📍 Visiting {currentNeighborhood.name}</div>
           )}
         </div>
+        {activeRoom?.created_by === profile?.id && (
+          <button
+            onClick={() => router.push('/invite?room=' + activeRoom.id)}
+            style={{ background: 'none', border: '1px solid ' + accent + '44', borderRadius: 6, color: accent, fontSize: 12, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}
+          >
+            + Invite
+          </button>
+        )}
       </div>
 
       {/* Messages */}

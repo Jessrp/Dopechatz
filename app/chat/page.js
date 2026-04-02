@@ -112,9 +112,9 @@ export default function ChatPage() {
 
     const visible = allRooms?.filter(room => {
       if (room.is_main) return true
+      if (memberRoomIds.includes(room.id)) return true
       if (!room.is_private) return true
       if (prof.tier === 7) return true
-      if (prof.tier === 3 && memberRoomIds.includes(room.id)) return true
       return false
     }) || []
 

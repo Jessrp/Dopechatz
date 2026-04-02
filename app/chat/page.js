@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { detectCurrentNeighborhood } from '@/lib/neighborhood'
+import { subscribeToPush } from '@/lib/push'
 
 export default function ChatPage() {
   const router = useRouter()
@@ -92,6 +93,7 @@ export default function ChatPage() {
     }
 
     setLoading(false)
+    subscribeToPush(prof.id)
   }
 
   async function loadRooms(prof, hood) {
@@ -181,6 +183,16 @@ export default function ChatPage() {
     if (error) {
       setMessages(prev => prev.filter(m => m.id !== optimistic.id))
       setInput2(optimistic.content)
+    } else {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: activeRoom.id,
+          message: optimistic.content,
+          senderUsername: profile.username
+        })
+      })
     }
   }
 

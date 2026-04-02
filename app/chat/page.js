@@ -39,7 +39,7 @@ export default function ChatPage() {
         }, async payload => {
           const { data: msgWithProfile } = await supabase
             .from('messages')
-            .select('*, profiles(username, accent_color, home_neighborhood_id, neighborhoods(name))')
+            .select('*, profiles(username, accent_color, home_neighborhood_id)')
             .eq('id', payload.new.id)
             .single()
           if (msgWithProfile) {
@@ -146,7 +146,7 @@ export default function ChatPage() {
   async function loadMessages(roomId) {
     const { data } = await supabase
       .from('messages')
-      .select('*, profiles(username, accent_color, home_neighborhood_id, neighborhoods(name))')
+      .select('*, profiles(username, accent_color, home_neighborhood_id)')
       .eq('room_id', roomId)
       .order('created_at', { ascending: true })
       .limit(100)

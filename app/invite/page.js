@@ -108,6 +108,19 @@ function InvitePage() {
         }}
       />
 
+      {invited.length > 0 && (
+        <button
+          onClick={() => router.push('/chat')}
+          style={{
+            width: '100%', padding: '14px', marginBottom: 16,
+            background: accent, color: '#000', border: 'none',
+            borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: 'pointer'
+          }}
+        >
+          ✓ Done — {invited.length} user{invited.length !== 1 ? 's' : ''} invited
+        </button>
+      )}
+
       {filtered.length === 0 && (
         <p style={{ color: '#444', fontSize: 14 }}>No users found.</p>
       )}

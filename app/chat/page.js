@@ -35,8 +35,19 @@ export default function ChatPage() {
           schema: 'public',
           table: 'messages',
           filter: `room_id=eq.${activeRoom.id}`
-        }, payload => {
-          setMessages(prev => [...prev, payload.new])
+        }, async payload => {
+          const { data: msgWithProfile } = await supabase
+            .from('messages')
+            .select('*, profiles(username, accent_color, home_neighborhood_id, neighborhoods(name))')
+            .eq('id', payload.new.id)
+            .single()
+          if (msgWithProfile) {
+            setMessages(prev => {
+              const exists = prev.find(m => m.id === msgWithProfile.id)
+              if (exists) return prev.map(m => m.id === msgWithProfile.id ? msgWithProfile : m)
+              return [...prev, msgWithProfile]
+            })
+          }
         })
         .subscribe()
       return () => supabase.removeChannel(sub)
@@ -65,7 +76,6 @@ export default function ChatPage() {
       setHue(hexToHue(prof.accent_color))
     }
 
-    // Load home neighborhood
     const { data: homeHood } = await supabase
       .from('neighborhoods')
       .select('*')
@@ -75,7 +85,6 @@ export default function ChatPage() {
     setHomeNeighborhood(homeHood)
     await loadRooms(prof, homeHood)
 
-    // Detect current location
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
       setCurrentNeighborhood(currentHood)
@@ -118,7 +127,6 @@ export default function ChatPage() {
       .eq('neighborhood_id', hood.id)
       .eq('is_main', true)
       .single()
-
     if (mainRoom) setVisitingRooms([mainRoom])
   }
 
@@ -136,7 +144,7 @@ export default function ChatPage() {
   async function loadMessages(roomId) {
     const { data } = await supabase
       .from('messages')
-      .select('*, profiles(username, accent_color)')
+      .select('*, profiles(username, accent_color, home_neighborhood_id, neighborhoods(name))')
       .eq('room_id', roomId)
       .order('created_at', { ascending: true })
       .limit(100)
@@ -146,12 +154,47 @@ export default function ChatPage() {
   async function sendMessage() {
     if (!input2.trim()) return
     if (profile.tier === 0 && !activeRoom.is_main) return
+
+    const optimistic = {
+      id: `temp-${Date.now()}`,
+      room_id: activeRoom.id,
+      user_id: profile.id,
+      content: input2.trim(),
+      created_at: new Date().toISOString(),
+      profiles: {
+        username: profile.username,
+        accent_color: profile.accent_color,
+        home_neighborhood_id: profile.home_neighborhood_id,
+        neighborhoods: homeNeighborhood ? { name: homeNeighborhood.name } : null
+      }
+    }
+
+    setMessages(prev => [...prev, optimistic])
+    setInput2('')
+
     const { error } = await supabase.from('messages').insert({
       room_id: activeRoom.id,
       user_id: profile.id,
-      content: input2.trim()
+      content: optimistic.content
     })
-    if (!error) setInput2('')
+
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id))
+      setInput2(optimistic.content)
+    }
+  }
+
+  function isVisitor(msg) {
+    if (!isVisiting) return false
+    return msg.user_id === profile?.id
+  }
+
+  function isOutOfTowner(msg) {
+    if (isVisiting) return false
+    if (!activeRoom) return false
+    const msgHomeHood = msg.profiles?.home_neighborhood_id
+    const roomNeighborhoodId = isVisiting ? currentNeighborhood?.id : homeNeighborhood?.id
+    return msgHomeHood && msgHomeHood !== roomNeighborhoodId
   }
 
   function canChat() {
@@ -197,8 +240,6 @@ export default function ChatPage() {
     </div>
   )
 
-  const visiting = isVisiting && currentNeighborhood
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: 'sans-serif', position: 'relative', overflow: 'hidden' }}>
 
@@ -219,8 +260,6 @@ export default function ChatPage() {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-
-          {/* Home neighborhood rooms */}
           <div style={{ padding: '8px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
             🏠 {homeNeighborhood?.name || 'Home'}
           </div>
@@ -229,12 +268,10 @@ export default function ChatPage() {
               key={room.id}
               onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
               style={{
-                padding: '12px 18px',
-                cursor: 'pointer',
+                padding: '12px 18px', cursor: 'pointer',
                 background: activeRoom?.id === room.id && !isVisiting ? `${accent}18` : 'transparent',
                 borderLeft: activeRoom?.id === room.id && !isVisiting ? `3px solid ${accent}` : '3px solid transparent',
-                fontSize: 14,
-                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 14, display: 'flex', alignItems: 'center', gap: 8,
                 color: activeRoom?.id === room.id && !isVisiting ? accent : '#aaa',
                 transition: 'all 0.15s ease'
               }}
@@ -245,7 +282,6 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Visiting neighborhood rooms */}
           {visitingRooms.length > 0 && (
             <>
               <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -256,12 +292,10 @@ export default function ChatPage() {
                   key={room.id}
                   onClick={() => { setActiveRoom(room); setIsVisiting(true); setSidebarOpen(false) }}
                   style={{
-                    padding: '12px 18px',
-                    cursor: 'pointer',
+                    padding: '12px 18px', cursor: 'pointer',
                     background: activeRoom?.id === room.id && isVisiting ? `${accent}18` : 'transparent',
                     borderLeft: activeRoom?.id === room.id && isVisiting ? `3px solid ${accent}` : '3px solid transparent',
-                    fontSize: 14,
-                    display: 'flex', alignItems: 'center', gap: 8,
+                    fontSize: 14, display: 'flex', alignItems: 'center', gap: 8,
                     color: activeRoom?.id === room.id && isVisiting ? accent : '#aaa',
                   }}
                 >
@@ -279,10 +313,7 @@ export default function ChatPage() {
             {profile?.tier === 0 ? 'Free' : profile?.tier === 3 ? '$3 tier' : '$7 tier'}
           </div>
 
-          <div
-            onClick={() => setShowColorPicker(!showColorPicker)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}
-          >
+          <div onClick={() => setShowColorPicker(!showColorPicker)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
             <div style={{ width: 14, height: 14, borderRadius: '50%', background: accent, boxShadow: `0 0 6px ${accent}88` }} />
             <span style={{ fontSize: 12, color: '#666' }}>Accent color</span>
           </div>
@@ -294,26 +325,17 @@ export default function ChatPage() {
             </div>
           )}
 
-          <button
-            onClick={refreshLocation}
-            style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}
-          >
+          <button onClick={refreshLocation} style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}>
             📍 Refresh location
           </button>
 
           {profile?.tier === 0 && (
-            <button
-              onClick={() => router.push('/upgrade')}
-              style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}
-            >
+            <button onClick={() => router.push('/upgrade')} style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
               Upgrade
             </button>
           )}
 
-          <button
-            onClick={() => supabase.auth.signOut().then(() => router.push('/login'))}
-            style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
+          <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             Sign out
           </button>
         </div>
@@ -329,7 +351,6 @@ export default function ChatPage() {
           <div style={{ width: 24, height: 2, background: accent, borderRadius: 2, opacity: sidebarOpen ? 0 : 1, transition: 'opacity 0.2s ease' }} />
           <div style={{ width: 24, height: 2, background: accent, borderRadius: 2, transform: sidebarOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none', transition: 'transform 0.25s ease' }} />
         </button>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {activeRoom?.name}
@@ -342,23 +363,47 @@ export default function ChatPage() {
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        {messages.map(msg => (
-          <div key={msg.id} style={{ marginBottom: 16 }}>
-            <span style={{ fontWeight: 700, fontSize: 13, color: msg.profiles?.accent_color || accent }}>
-              {msg.profiles?.username}
-            </span>
-            {msg.user_id !== profile?.id && isVisiting && (
-              <span style={{ fontSize: 10, color: '#555', marginLeft: 6 }}>local</span>
-            )}
-            {msg.user_id === profile?.id && isVisiting && (
-              <span style={{ fontSize: 10, color: accent, marginLeft: 6 }}>📍 visitor</span>
-            )}
-            <span style={{ fontSize: 11, color: '#333', marginLeft: 8 }}>
-              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-            <div style={{ fontSize: 15, marginTop: 3, color: msg.profiles?.accent_color ? msg.profiles.accent_color + 'cc' : '#ddd', lineHeight: 1.4 }}>{msg.content}</div>
-          </div>
-        ))}
+        {messages.map(msg => {
+          const msgAccent = msg.profiles?.accent_color || '#888'
+          const outOfTowner = isOutOfTowner(msg)
+          const visitor = isVisitor(msg)
+          const homeHoodName = msg.profiles?.neighborhoods?.name
+
+          return (
+            <div key={msg.id} style={{ marginBottom: 18 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontWeight: 700, fontSize: 13, color: msgAccent }}>
+                  {msg.profiles?.username}
+                </span>
+                {outOfTowner && homeHoodName && (
+                  <span style={{
+                    fontSize: 10, color: msgAccent, opacity: 0.7,
+                    border: `1px solid ${msgAccent}44`,
+                    borderRadius: 10, padding: '1px 7px',
+                    display: 'inline-flex', alignItems: 'center', gap: 3
+                  }}>
+                    🌍 from {homeHoodName}
+                  </span>
+                )}
+                {visitor && (
+                  <span style={{
+                    fontSize: 10, color: accent, opacity: 0.7,
+                    border: `1px solid ${accent}44`,
+                    borderRadius: 10, padding: '1px 7px'
+                  }}>
+                    📍 visiting
+                  </span>
+                )}
+                <span style={{ fontSize: 11, color: '#333' }}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+              <div style={{ fontSize: 15, marginTop: 3, color: msgAccent === '#888' ? '#ddd' : msgAccent + 'cc', lineHeight: 1.4 }}>
+                {msg.content}
+              </div>
+            </div>
+          )
+        })}
         <div ref={bottomRef} />
       </div>
 

@@ -53,7 +53,7 @@ export default function ChatPage() {
 
     const { data: prof } = await supabase
       .from('profiles')
-      .select('*, neighborhoods(*)')
+      .select('*')
       .eq('id', user.id)
       .single()
 

@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { Suspense } from 'react'
 
 function InvitePage() {
   const router = useRouter()
@@ -47,40 +46,29 @@ function InvitePage() {
     }
     setRoom(roomData)
 
-    // Get existing members
     const { data: members } = await supabase
       .from('room_members')
       .select('user_id')
       .eq('room_id', roomId)
 
-    const memberIds = members?.map(m => m.user_id) || []
-    setInvited(memberIds)
+    setInvited(members?.map(m => m.user_id) || [])
 
-    // Get neighborhood users
-    const { data: neighborhoodUsers } = await supabase
+    const { data: allUsers } = await supabase
       .from('profiles')
       .select('id, username, accent_color, tier')
-      .eq('neighborhood_id', prof.neighborhood_id)
       .neq('id', user.id)
 
-    setUsers(neighborhoodUsers || [])
+    setUsers(allUsers || [])
     setLoading(false)
   }
 
   async function toggleInvite(userId) {
     const isInvited = invited.includes(userId)
-
     if (isInvited) {
-      await supabase
-        .from('room_members')
-        .delete()
-        .eq('room_id', roomId)
-        .eq('user_id', userId)
+      await supabase.from('room_members').delete().eq('room_id', roomId).eq('user_id', userId)
       setInvited(prev => prev.filter(id => id !== userId))
     } else {
-      await supabase
-        .from('room_members')
-        .insert({ room_id: roomId, user_id: userId, invited_by: profile.id })
+      await supabase.from('room_members').insert({ room_id: roomId, user_id: userId, invited_by: profile.id })
       setInvited(prev => [...prev, userId])
     }
   }
@@ -121,7 +109,7 @@ function InvitePage() {
       />
 
       {filtered.length === 0 && (
-        <p style={{ color: '#444', fontSize: 14 }}>No users found in your neighborhood.</p>
+        <p style={{ color: '#444', fontSize: 14 }}>No users found.</p>
       )}
 
       {filtered.map(u => {

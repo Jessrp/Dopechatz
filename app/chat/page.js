@@ -347,6 +347,22 @@ export default function ChatPage() {
             </button>
           )}
 
+          {profile?.tier > 0 && (
+            <button
+              onClick={() => router.push('/create-room')}
+              style={{ width: '100%', padding: '8px', fontSize: 12, color: accent, background: 'none', border: '1px solid ' + accent + '44', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}
+            >
+              + New Room
+            </button>
+          )}
+          {profile?.tier === 0 && (
+            <button
+              onClick={() => router.push('/upgrade')}
+              style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}
+            >
+              Upgrade
+            </button>
+          )}
           <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             Sign out
           </button>

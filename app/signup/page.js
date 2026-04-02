@@ -19,11 +19,9 @@ export default function SignupPage() {
   async function handleSignup() {
     setLoading(true)
     setError('')
-
     const { data, error: signupError } = await supabase.auth.signUp({ email, password })
     if (signupError) { setError(signupError.message); setLoading(false); return }
     if (!data.user) { setError('Signup failed, please try again.'); setLoading(false); return }
-
     setUserId(data.user.id)
     const s = generateUsername()
     setSuggested(s)
@@ -36,19 +34,16 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
     setStep('locating')
-
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
         const neighborhood = await assignNeighborhood(lat, lng)
-
         if (!neighborhood) {
           setError('Could not determine your neighborhood. Please try again.')
           setStep('username')
           setLoading(false)
           return
         }
-
         const { error: profileError } = await supabase.from('profiles').insert({
           id: userId,
           username,
@@ -57,12 +52,11 @@ export default function SignupPage() {
           home_neighborhood_id: neighborhood.id,
           lat,
           lng,
-          tier: 0, email: email
+          tier: 0,
+          email: email
         })
-
         if (profileError) { setError(profileError.message); setStep('username'); setLoading(false); return }
-
-        router.push('/chat')
+        router.push('/onboarding')
       },
       () => {
         setError('Location access is required. Please enable it and try again.')
@@ -73,8 +67,8 @@ export default function SignupPage() {
   }
 
   return (
-    <main style={{ maxWidth: 400, margin: '80px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>Dopechatz</h1>
+    <main style={{ maxWidth: 400, margin: '80px auto', padding: '0 20px', fontFamily: 'sans-serif', background: '#000', minHeight: '100vh', color: '#fff' }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8, paddingTop: 60 }}>Dopechatz</h1>
       <p style={{ color: '#666', marginBottom: 32 }}>Your neighborhood, anonymously.</p>
 
       {error && <p style={{ color: 'red', marginBottom: 16 }}>{error}</p>}
@@ -97,15 +91,21 @@ export default function SignupPage() {
           <button onClick={handleSignup} disabled={loading} style={btnStyle}>
             {loading ? 'Creating account...' : 'Create Account'}
           </button>
-          <p style={{ marginTop: 16, color: '#666', fontSize: 14 }}>
-            Already have an account? <a href="/login" style={{ color: '#000' }} style={{ color: '#000' }}>Log in</a>
-          </p>
+          <div style={{ marginTop: 20, textAlign: 'center' }}>
+            <span style={{ color: '#666', fontSize: 15 }}>Already have an account? </span>
+            <span
+              onClick={() => router.push('/login')}
+              style={{ color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Log in
+            </span>
+          </div>
         </>
       )}
 
       {step === 'username' && (
         <>
-          <p style={{ marginBottom: 12, fontSize: 15 }}>
+          <p style={{ marginBottom: 12, fontSize: 15, color: '#ccc' }}>
             We suggested a username for you. You can change it now, or once more later — then it is locked.
           </p>
           <input
@@ -113,8 +113,8 @@ export default function SignupPage() {
             onChange={e => setUsername(e.target.value)}
             style={inputStyle}
           />
-          <p style={{ fontSize: 12, color: '#999', marginBottom: 16 }}>
-            Suggested: <strong>{suggested}</strong>
+          <p style={{ fontSize: 12, color: '#555', marginBottom: 16 }}>
+            Suggested: <strong style={{ color: '#888' }}>{suggested}</strong>
           </p>
           <button onClick={handleConfirmUsername} disabled={loading} style={btnStyle}>
             {loading ? 'Saving...' : 'Confirm Username'}
@@ -123,7 +123,7 @@ export default function SignupPage() {
       )}
 
       {step === 'locating' && (
-        <p style={{ fontSize: 16 }}>Finding your neighborhood...</p>
+        <p style={{ fontSize: 16, color: '#ccc' }}>Finding your neighborhood...</p>
       )}
     </main>
   )
@@ -135,9 +135,11 @@ const inputStyle = {
   padding: '12px',
   marginBottom: 12,
   fontSize: 15,
-  border: '1px solid #ddd',
+  border: '1px solid #333',
   borderRadius: 8,
-  boxSizing: 'border-box'
+  boxSizing: 'border-box',
+  background: '#111',
+  color: '#fff'
 }
 
 const btnStyle = {
@@ -146,8 +148,8 @@ const btnStyle = {
   padding: '12px',
   fontSize: 15,
   fontWeight: 600,
-  background: '#000',
-  color: '#fff',
+  background: '#fff',
+  color: '#000',
   border: 'none',
   borderRadius: 8,
   cursor: 'pointer'

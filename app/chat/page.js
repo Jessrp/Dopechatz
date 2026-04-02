@@ -136,7 +136,7 @@ export default function ChatPage() {
   async function loadMessages(roomId) {
     const { data } = await supabase
       .from('messages')
-      .select('*, profiles(username)')
+      .select('*, profiles(username, accent_color)')
       .eq('room_id', roomId)
       .order('created_at', { ascending: true })
       .limit(100)
@@ -344,7 +344,7 @@ export default function ChatPage() {
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {messages.map(msg => (
           <div key={msg.id} style={{ marginBottom: 16 }}>
-            <span style={{ fontWeight: 700, fontSize: 13, color: accent }}>
+            <span style={{ fontWeight: 700, fontSize: 13, color: msg.profiles?.accent_color || accent }}>
               {msg.profiles?.username}
             </span>
             {msg.user_id !== profile?.id && isVisiting && (
@@ -356,7 +356,7 @@ export default function ChatPage() {
             <span style={{ fontSize: 11, color: '#333', marginLeft: 8 }}>
               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <div style={{ fontSize: 15, marginTop: 3, color: '#ddd', lineHeight: 1.4 }}>{msg.content}</div>
+            <div style={{ fontSize: 15, marginTop: 3, color: msg.profiles?.accent_color ? msg.profiles.accent_color + 'cc' : '#ddd', lineHeight: 1.4 }}>{msg.content}</div>
           </div>
         ))}
         <div ref={bottomRef} />

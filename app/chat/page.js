@@ -22,6 +22,8 @@ export default function ChatPage() {
   const [hue, setHue] = useState(217)
   const [input2, setInput2] = useState('')
   const [isVisiting, setIsVisiting] = useState(false)
+  const [activeUsers, setActiveUsers] = useState([])
+  const [showActive, setShowActive] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => { loadProfile() }, [])
@@ -86,6 +88,7 @@ export default function ChatPage() {
     setHomeNeighborhood(homeHood)
     await loadRooms(prof, homeHood)
 
+    await loadActiveUsers(homeHood?.id || prof.neighborhood_id)
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
       setCurrentNeighborhood(currentHood)
@@ -94,6 +97,12 @@ export default function ChatPage() {
 
     setLoading(false)
     subscribeToPush(prof.id)
+
+    // Update last seen every 5 minutes
+    await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', prof.id)
+    setInterval(async () => {
+      await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', prof.id)
+    }, 300000)
   }
 
   async function loadRooms(prof, hood) {
@@ -120,6 +129,17 @@ export default function ChatPage() {
 
     setRooms(visible)
     if (visible.length > 0) setActiveRoom(visible[0])
+  }
+
+  async function loadActiveUsers(neighborhoodId) {
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, accent_color, last_seen, status_public')
+      .eq('neighborhood_id', neighborhoodId)
+      .eq('status_public', true)
+      .gte('last_seen', fifteenMinsAgo)
+    setActiveUsers(data || [])
   }
 
   async function loadVisitingRooms(hood) {
@@ -319,6 +339,25 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Active users section */}
+        {activeUsers.length > 0 && (
+          <div style={{ borderTop: `1px solid ${accent}22`, padding: '8px 0' }}>
+            <div
+              onClick={() => setShowActive(!showActive)}
+              style={{ padding: '8px 18px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            >
+              <span>⚡ Active Now ({activeUsers.length})</span>
+              <span>{showActive ? '▾' : '▸'}</span>
+            </div>
+            {showActive && activeUsers.map(u => (
+              <div key={u.id} style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
+                <span style={{ fontSize: 13, color: u.accent_color || '#aaa', fontWeight: 600 }}>{u.username}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ padding: '14px 18px', borderTop: `1px solid ${accent}22` }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: '#fff' }}>{profile?.username}</div>
           <div style={{ fontSize: 11, color: '#444', marginBottom: 12 }}>
@@ -340,6 +379,18 @@ export default function ChatPage() {
           <button onClick={refreshLocation} style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}>
             📍 Refresh location
           </button>
+
+          <div
+            onClick={async () => {
+              const newStatus = !profile.status_public
+              await supabase.from('profiles').update({ status_public: newStatus }).eq('id', profile.id)
+              setProfile(prev => ({ ...prev, status_public: newStatus }))
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}
+          >
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: profile?.status_public ? '#00ff88' : '#444', boxShadow: profile?.status_public ? '0 0 6px #00ff88' : 'none' }} />
+            <span style={{ fontSize: 12, color: '#666' }}>{profile?.status_public ? 'Active status on' : 'Active status off'}</span>
+          </div>
 
           {profile?.tier === 0 && (
             <button onClick={() => router.push('/upgrade')} style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>

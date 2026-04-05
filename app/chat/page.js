@@ -350,9 +350,17 @@ export default function ChatPage() {
               <span>{showActive ? '▾' : '▸'}</span>
             </div>
             {showActive && activeUsers.map(u => (
-              <div key={u.id} style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div
+                key={u.id}
+                onClick={() => {
+                  if (profile?.tier === 0) { router.push('/upgrade'); return }
+                  router.push('/dm/' + u.id)
+                }}
+                style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              >
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
                 <span style={{ fontSize: 13, color: u.accent_color || '#aaa', fontWeight: 600 }}>{u.username}</span>
+                {profile?.tier === 0 && <span style={{ fontSize: 10, color: '#444', marginLeft: 'auto' }}>Pro</span>}
               </div>
             ))}
           </div>

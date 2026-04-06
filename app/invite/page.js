@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -15,10 +15,13 @@ function InvitePage() {
   const [invited, setInvited] = useState([])
   const [loading, setLoading] = useState(true)
   const [accent, setAccent] = useState('#3b82f6')
+  const [countdown, setCountdown] = useState(null)
+  const countdownRef = useRef(null)
 
   useEffect(() => {
     if (!roomId) { router.push('/chat'); return }
     loadData()
+    return () => clearInterval(countdownRef.current)
   }, [roomId])
 
   async function loadData() {
@@ -46,6 +49,11 @@ function InvitePage() {
     }
     setRoom(roomData)
 
+    // Start countdown if secret room
+    if (roomData.is_secret && roomData.expires_at) {
+      startCountdown(roomData.expires_at)
+    }
+
     const { data: members } = await supabase
       .from('room_members')
       .select('user_id')
@@ -53,13 +61,34 @@ function InvitePage() {
 
     setInvited(members?.map(m => m.user_id) || [])
 
-    const { data: allUsers } = await supabase
+    // For secret rooms: only show Pro members
+    // For normal rooms: show everyone
+    let query = supabase
       .from('profiles')
       .select('id, username, accent_color, tier')
       .neq('id', user.id)
 
+    if (roomData.is_secret) {
+      query = query.eq('tier', 7)
+    }
+
+    const { data: allUsers } = await query
     setUsers(allUsers || [])
     setLoading(false)
+  }
+
+  function startCountdown(expiresAt) {
+    clearInterval(countdownRef.current)
+    const tick = () => {
+      const diff = new Date(expiresAt) - new Date()
+      if (diff <= 0) { setCountdown('00:00:00'); clearInterval(countdownRef.current); return }
+      const h = Math.floor(diff / 3600000)
+      const m = Math.floor((diff % 3600000) / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      setCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`)
+    }
+    tick()
+    countdownRef.current = setInterval(tick, 1000)
   }
 
   async function toggleInvite(userId) {
@@ -77,6 +106,9 @@ function InvitePage() {
     u.username.toLowerCase().includes(search.toLowerCase())
   )
 
+  const isSecret = room?.is_secret
+  const headerColor = isSecret ? '#ce93d8' : accent
+
   if (loading) return (
     <div style={{ background: '#000', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: '#fff', fontFamily: 'sans-serif' }}>Loading...</p>
@@ -87,22 +119,50 @@ function InvitePage() {
     <div style={{ background: '#000', minHeight: '100vh', color: '#fff', fontFamily: 'sans-serif', padding: '40px 20px' }}>
       <button
         onClick={() => router.push('/chat')}
-        style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', fontSize: 14, marginBottom: 32, padding: 0 }}
+        style={{ background: 'none', border: 'none', color: headerColor, cursor: 'pointer', fontSize: 14, marginBottom: 32, padding: 0 }}
       >
         ← Back
       </button>
 
-      <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Invite to Room</h1>
-      <p style={{ color: '#555', fontSize: 13, marginBottom: 24 }}>{room?.name}</p>
+      {/* Header — different for secret vs normal */}
+      {isSecret ? (
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 18 }}>🔒</span>
+            <h1 style={{ fontSize: 24, fontWeight: 800, color: '#ce93d8', margin: 0 }}>Secret Room Invite</h1>
+          </div>
+          <p style={{ color: '#664477', fontSize: 13, marginBottom: 12 }}>{room?.name}</p>
+
+          {/* Countdown banner */}
+          {countdown && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: '#1a0a1f', border: '1px solid #ce93d833', borderRadius: 10, padding: '10px 16px' }}>
+              <span style={{ fontSize: 11, color: '#664477', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Session ends in</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 16, fontWeight: 800, color: countdown === '00:00:00' ? '#ff4444' : '#ce93d8' }}>
+                {countdown}
+              </span>
+            </div>
+          )}
+
+          <p style={{ color: '#555', fontSize: 12, marginTop: 12, lineHeight: 1.6 }}>
+            Only <span style={{ color: '#ce93d8' }}>Pro members</span> can be invited to Secret Rooms.
+            Invited members can access this room until the session expires.
+          </p>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Invite to Room</h1>
+          <p style={{ color: '#555', fontSize: 13 }}>{room?.name}</p>
+        </div>
+      )}
 
       <input
-        placeholder="Search by username..."
+        placeholder={isSecret ? 'Search Pro members...' : 'Search by username...'}
         value={search}
         onChange={e => setSearch(e.target.value)}
         style={{
           display: 'block', width: '100%', padding: '12px',
           marginBottom: 20, fontSize: 15,
-          border: `1px solid ${accent}44`, borderRadius: 8,
+          border: `1px solid ${headerColor}44`, borderRadius: 8,
           background: '#111', color: '#fff', outline: 'none',
           boxSizing: 'border-box'
         }}
@@ -113,16 +173,18 @@ function InvitePage() {
           onClick={() => router.push('/chat')}
           style={{
             width: '100%', padding: '14px', marginBottom: 16,
-            background: accent, color: '#000', border: 'none',
+            background: headerColor, color: '#000', border: 'none',
             borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: 'pointer'
           }}
         >
-          ✓ Done — {invited.length} user{invited.length !== 1 ? 's' : ''} invited
+          ✓ Done — {invited.length} member{invited.length !== 1 ? 's' : ''} invited
         </button>
       )}
 
       {filtered.length === 0 && (
-        <p style={{ color: '#444', fontSize: 14 }}>No users found.</p>
+        <p style={{ color: '#444', fontSize: 14 }}>
+          {isSecret ? 'No Pro members found.' : 'No users found.'}
+        </p>
       )}
 
       {filtered.map(u => {
@@ -135,23 +197,29 @@ function InvitePage() {
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 16px', borderRadius: 10, marginBottom: 10,
-              border: `1px solid ${isInvited ? accent : '#222'}`,
-              background: isInvited ? `${accent}11` : '#111',
+              border: `1px solid ${isInvited ? headerColor : '#222'}`,
+              background: isInvited ? `${headerColor}11` : '#111',
               cursor: 'pointer'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 10, height: 10, borderRadius: '50%', background: userAccent }} />
               <span style={{ fontWeight: 600, fontSize: 14, color: userAccent }}>{u.username}</span>
-              <span style={{ fontSize: 11, color: '#444' }}>
-                {u.tier === 0 ? 'Free' : u.tier === 3 ? 'Plus' : 'Pro'}
-              </span>
+              {!isSecret && (
+                <span style={{ fontSize: 11, color: '#444' }}>
+                  {u.tier === 0 ? 'Free' : u.tier === 3 ? 'Plus' : 'Pro'}
+                </span>
+              )}
+              {isSecret && (
+                <span style={{ fontSize: 10, color: '#ce93d844', border: '1px solid #ce93d822', borderRadius: 8, padding: '1px 7px' }}>Pro</span>
+              )}
             </div>
             <div style={{
               width: 20, height: 20, borderRadius: 6,
-              border: `2px solid ${isInvited ? accent : '#444'}`,
-              background: isInvited ? accent : 'transparent',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
+              border: `2px solid ${isInvited ? headerColor : '#444'}`,
+              background: isInvited ? headerColor : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0
             }}>
               {isInvited && <span style={{ color: '#000', fontSize: 12, fontWeight: 800 }}>✓</span>}
             </div>

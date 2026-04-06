@@ -19,7 +19,6 @@ export default function PreviewPage() {
         const hood = await assignNeighborhood(lat, lng)
         setNeighborhood(hood)
 
-        // Get main room for this neighborhood
         const { data: room } = await supabase
           .from('rooms')
           .select('*')
@@ -30,11 +29,10 @@ export default function PreviewPage() {
         if (room) {
           const { data: msgs } = await supabase
             .from('messages')
-            .select('*, profiles(username)')
+            .select('*, profiles(username, accent_color)')
             .eq('room_id', room.id)
             .order('created_at', { ascending: false })
             .limit(30)
-
           setMessages((msgs || []).reverse())
         }
 
@@ -48,108 +46,108 @@ export default function PreviewPage() {
   }, [])
 
   if (loading) return (
-    <main style={{ padding: 40, fontFamily: 'sans-serif' }}>
-      <p>Finding your neighborhood...</p>
-    </main>
+    <div style={{ background: '#000', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 16 }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ffdd', boxShadow: '0 0 12px #00ffdd', animation: 'pulse 1.5s infinite' }} />
+      <p style={{ color: '#444', fontSize: 14 }}>Finding your neighborhood...</p>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.7)} }`}</style>
+    </div>
   )
 
   if (locationDenied) return (
-    <main style={{ maxWidth: 400, margin: '80px auto', padding: '0 20px', fontFamily: 'sans-serif' }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>Dopechatz</h1>
-      <p style={{ color: '#666', marginTop: 8 }}>We need your location to show your neighborhood chat.</p>
-      <button onClick={() => window.location.reload()} style={btnStyle}>Try Again</button>
-      <a href="/signup" style={{ ...btnStyle, background: '#fff', color: '#000', border: '1px solid #000', display: 'block', textAlign: 'center', marginTop: 10, textDecoration: 'none' }}>
-        Sign Up
-      </a>
-    </main>
+    <div style={{ background: '#000', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: '0 24px', textAlign: 'center' }}>
+      <div style={{ fontSize: 36, marginBottom: 16 }}>📍</div>
+      <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 8, color: '#fff' }}>Location needed</h1>
+      <p style={{ color: '#555', fontSize: 14, lineHeight: 1.7, marginBottom: 32, maxWidth: 300 }}>
+        Dopechatz is built around where you are. We need your location to show your neighborhood chat.
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        style={{ width: '100%', maxWidth: 300, padding: '14px', background: '#00ffdd', color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: 'pointer', marginBottom: 12 }}
+      >
+        Try again
+      </button>
+      <button
+        onClick={() => router.push('/signup')}
+        style={{ width: '100%', maxWidth: 300, padding: '14px', background: 'transparent', color: '#fff', border: '1px solid #333', borderRadius: 10, fontWeight: 600, fontSize: 15, cursor: 'pointer' }}
+      >
+        Sign up anyway
+      </button>
+    </div>
   )
 
   return (
-    <main style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'sans-serif' }}>
-      {/* Header */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: 'sans-serif' }}>
+
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56, borderBottom: '1px solid #1a1a1a', background: '#111', flexShrink: 0 }}>
         <div>
-          <span style={{ fontWeight: 700, fontSize: 18 }}>Dopechatz</span>
-          {neighborhood && (
-            <span style={{ fontSize: 13, color: '#999', marginLeft: 10 }}>{neighborhood.name}</span>
-          )}
+          <span style={{ fontWeight: 800, fontSize: 16, color: '#00ffdd' }}>Dopechatz</span>
+          {neighborhood && <span style={{ fontSize: 12, color: '#444', marginLeft: 10 }}>{neighborhood.name}</span>}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href="/login" style={{ fontSize: 13, color: '#fff', textDecoration: 'none', padding: '6px 12px', border: '1px solid #444', borderRadius: 6 }}>
+          <button onClick={() => router.push('/login')} style={{ fontSize: 12, color: '#aaa', background: 'none', border: '1px solid #333', borderRadius: 6, padding: '6px 12px', cursor: 'pointer' }}>
             Log in
-          </a>
-          <a href="/signup" style={{ fontSize: 13, color: '#000', textDecoration: 'none', padding: '6px 12px', background: '#fff', borderRadius: 6 }}>
+          </button>
+          <button onClick={() => router.push('/signup')} style={{ fontSize: 12, color: '#000', background: '#00ffdd', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontWeight: 700 }}>
             Sign up
-          </a>
+          </button>
         </div>
       </div>
 
       {/* Preview banner */}
-      <div style={{ background: '#f5f5f5', padding: '10px 20px', fontSize: 13, color: '#666', textAlign: 'center' }}>
-        You're previewing your neighborhood chat — <a href="/signup" style={{ color: '#000', fontWeight: 600 }}>sign up to join the conversation</a>
+      <div style={{ background: '#0a0a0a', borderBottom: '1px solid #1a1a1a', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <span style={{ fontSize: 12, color: '#444' }}>👀 Previewing — read only</span>
+        <button onClick={() => router.push('/signup')} style={{ fontSize: 12, color: '#00ffdd', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700, padding: 0 }}>
+          Join to chat →
+        </button>
       </div>
 
-      {/* Messages (read only) */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {messages.length === 0 ? (
-          <p style={{ color: '#999', fontSize: 14 }}>No messages yet in your neighborhood. Be the first — sign up!</p>
+          <div style={{ textAlign: 'center', paddingTop: 60 }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🏘️</div>
+            <p style={{ color: '#444', fontSize: 14, marginBottom: 20 }}>No messages yet in {neighborhood?.name || 'your neighborhood'}.</p>
+            <button onClick={() => router.push('/signup')} style={{ padding: '12px 24px', background: '#00ffdd', color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+              Be the first — sign up
+            </button>
+          </div>
         ) : (
-          messages.map(msg => (
-            <div key={msg.id} style={{ marginBottom: 12 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>{msg.profiles?.username}</span>
-              <span style={{ fontSize: 11, color: '#999', marginLeft: 8 }}>
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <div style={{ fontSize: 15, marginTop: 2 }}>{msg.content}</div>
-            </div>
-          ))
+          messages.map(msg => {
+            const msgAccent = msg.profiles?.accent_color || '#555'
+            return (
+              <div key={msg.id} style={{ marginBottom: 18 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: msgAccent }}>{msg.profiles?.username}</span>
+                  <span style={{ fontSize: 11, color: '#333' }}>
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <div style={{ fontSize: 15, marginTop: 3, color: '#aaa', lineHeight: 1.4 }}>{msg.content}</div>
+              </div>
+            )
+          })
         )}
       </div>
 
-      {/* Locked input */}
-      <div style={{ padding: '12px 20px', borderTop: '1px solid #eee', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <div style={{
-          flex: 1,
-          padding: '10px 14px',
-          fontSize: 14,
-          border: '1px solid #ddd',
-          borderRadius: 8,
-          color: '#aaa',
-          background: '#fafafa'
-        }}>
-          Sign up to start chatting...
+      {/* Locked input with upsell */}
+      <div style={{ borderTop: '1px solid #1a1a1a', background: '#111', flexShrink: 0 }}>
+        <div style={{ padding: '10px 12px', display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, padding: '11px 14px', fontSize: 14, border: '1px solid #222', borderRadius: 10, color: '#333', background: '#0a0a0a' }}>
+            Sign up to start chatting...
+          </div>
+          <button onClick={() => router.push('/signup')} style={{ padding: '11px 20px', background: '#00ffdd', color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+            Join
+          </button>
         </div>
-        <a href="/signup" style={{
-          padding: '10px 18px',
-          background: '#000',
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          cursor: 'pointer',
-          fontWeight: 600,
-          textDecoration: 'none',
-          fontSize: 14
-        }}>
-          Join
-        </a>
-      </div>
-    </main>
-  )
-}
 
-const btnStyle = {
-  display: 'block',
-  width: '100%',
-  padding: '12px',
-  fontSize: 15,
-  fontWeight: 600,
-  background: '#000',
-  color: '#fff',
-  border: 'none',
-  borderRadius: 8,
-  cursor: 'pointer',
-  marginTop: 16,
-  textDecoration: 'none',
-  textAlign: 'center',
-  boxSizing: 'border-box'
+        {/* Tier teaser */}
+        <div style={{ padding: '0 12px 14px', display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <div style={{ fontSize: 11, color: '#333', textAlign: 'center' }}>
+            Free to join · <span style={{ color: '#4fc3f7' }}>Plus</span> for custom rooms · <span style={{ color: '#ce93d8' }}>Pro</span> for Secret Rooms & DMs
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }

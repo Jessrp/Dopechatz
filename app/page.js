@@ -12,14 +12,12 @@ export default function Home() {
       if (user) {
         router.push('/chat')
       } else {
-        router.push('/preview')
+        router.push('/landing')
       }
     })
   }, [])
 
   return (
-    <main style={{ padding: 40, fontFamily: 'sans-serif' }}>
-      <p>Loading...</p>
-    </main>
+    <main style={{ background: '#000', height: '100vh' }} />
   )
 }

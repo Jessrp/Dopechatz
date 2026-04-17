@@ -25,10 +25,8 @@ export default function ChatPage() {
   const [activeUsers, setActiveUsers] = useState([])
   const [showActive, setShowActive] = useState(false)
   const [secretCountdown, setSecretCountdown] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
   const bottomRef = useRef(null)
   const countdownRef = useRef(null)
-  const pressTimer = useRef(null)
 
   useEffect(() => { loadProfile() }, [])
 
@@ -38,13 +36,16 @@ export default function ChatPage() {
       const sub = supabase
         .channel(`room:${activeRoom.id}`)
         .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'messages',
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
           filter: `room_id=eq.${activeRoom.id}`
         }, async payload => {
           const { data: msgWithProfile } = await supabase
             .from('messages')
             .select('*, profiles(username, accent_color, home_neighborhood_id)')
-            .eq('id', payload.new.id).single()
+            .eq('id', payload.new.id)
+            .single()
           if (msgWithProfile) {
             setMessages(prev => {
               const exists = prev.find(m => m.id === msgWithProfile.id)
@@ -53,14 +54,9 @@ export default function ChatPage() {
             })
           }
         })
-        .on('postgres_changes', {
-          event: 'DELETE', schema: 'public', table: 'messages',
-          filter: `room_id=eq.${activeRoom.id}`
-        }, payload => {
-          setMessages(prev => prev.filter(m => m.id !== payload.old.id))
-        })
         .subscribe()
 
+      // Start countdown if this is a Secret Room
       if (activeRoom.is_secret && activeRoom.expires_at) {
         startCountdown(activeRoom.expires_at)
       } else {
@@ -86,13 +82,18 @@ export default function ChatPage() {
       if (diff <= 0) {
         setSecretCountdown('00:00:00')
         clearInterval(countdownRef.current)
-        setTimeout(() => setActiveRoom(rooms.find(r => r.is_main) || null), 2000)
+        // Boot user out when expired
+        setTimeout(() => {
+          setActiveRoom(rooms.find(r => r.is_main) || null)
+        }, 2000)
         return
       }
       const h = Math.floor(diff / 3600000)
       const m = Math.floor((diff % 3600000) / 60000)
       const s = Math.floor((diff % 60000) / 1000)
-      setSecretCountdown(`${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`)
+      setSecretCountdown(
+        `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      )
     }
     tick()
     countdownRef.current = setInterval(tick, 1000)
@@ -101,21 +102,40 @@ export default function ChatPage() {
   async function loadProfile() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
-    const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+
+    const { data: prof } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
     if (!prof) { router.push('/signup'); return }
+
     setProfile(prof)
-    if (prof.accent_color) { setAccent(prof.accent_color); setHue(hexToHue(prof.accent_color)) }
-    const { data: homeHood } = await supabase.from('neighborhoods').select('*').eq('id', prof.home_neighborhood_id || prof.neighborhood_id).single()
+    if (prof.accent_color) {
+      setAccent(prof.accent_color)
+      setHue(hexToHue(prof.accent_color))
+    }
+
+    const { data: homeHood } = await supabase
+      .from('neighborhoods')
+      .select('*')
+      .eq('id', prof.home_neighborhood_id || prof.neighborhood_id)
+      .single()
+
     setHomeNeighborhood(homeHood)
     await loadRooms(prof, homeHood)
     await loadActiveUsers(homeHood?.id || prof.neighborhood_id)
+
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
       setCurrentNeighborhood(currentHood)
       await loadVisitingRooms(currentHood)
     }
+
     setLoading(false)
     subscribeToPush(prof.id)
+
     await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', prof.id)
     setInterval(async () => {
       await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', prof.id)
@@ -123,32 +143,55 @@ export default function ChatPage() {
   }
 
   async function loadRooms(prof, hood) {
-    const { data: allRooms } = await supabase.from('rooms').select('*').eq('neighborhood_id', hood?.id || prof.neighborhood_id).order('is_main', { ascending: false })
-    const { data: memberships } = await supabase.from('room_members').select('room_id').eq('user_id', prof.id)
+    const { data: allRooms } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('neighborhood_id', hood?.id || prof.neighborhood_id)
+      .order('is_main', { ascending: false })
+
+    const { data: memberships } = await supabase
+      .from('room_members')
+      .select('room_id')
+      .eq('user_id', prof.id)
+
     const memberRoomIds = memberships?.map(m => m.room_id) || []
+
     const visible = allRooms?.filter(room => {
       if (room.is_main) return true
+      // Secret rooms: only visible to Pro members or if they're a member
       if (room.is_secret) {
         if (prof.tier === 7) return true
         if (memberRoomIds.includes(room.id)) return true
         return false
       }
+      // Normal rooms: visible to all, but free can't participate
       if (!room.is_private) return true
       if (memberRoomIds.includes(room.id)) return true
       return false
     }) || []
+
     setRooms(visible)
     if (visible.length > 0) setActiveRoom(visible[0])
   }
 
   async function loadActiveUsers(neighborhoodId) {
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-    const { data } = await supabase.from('profiles').select('id, username, accent_color, last_seen, status_public, tier').eq('neighborhood_id', neighborhoodId).eq('status_public', true).gte('last_seen', fifteenMinsAgo)
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, accent_color, last_seen, status_public')
+      .eq('neighborhood_id', neighborhoodId)
+      .eq('status_public', true)
+      .gte('last_seen', fifteenMinsAgo)
     setActiveUsers(data || [])
   }
 
   async function loadVisitingRooms(hood) {
-    const { data: mainRoom } = await supabase.from('rooms').select('*').eq('neighborhood_id', hood.id).eq('is_main', true).single()
+    const { data: mainRoom } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('neighborhood_id', hood.id)
+      .eq('is_main', true)
+      .single()
     if (mainRoom) setVisitingRooms([mainRoom])
   }
 
@@ -164,81 +207,112 @@ export default function ChatPage() {
   }
 
   async function loadMessages(roomId) {
-    const { data } = await supabase.from('messages').select('*, profiles(username, accent_color, home_neighborhood_id)').eq('room_id', roomId).order('created_at', { ascending: true }).limit(100)
+    const { data } = await supabase
+      .from('messages')
+      .select('*, profiles(username, accent_color, home_neighborhood_id)')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true })
+      .limit(100)
     setMessages(data || [])
   }
 
   async function sendMessage() {
-    if (!input2.trim() || !canChat()) return
+    if (!input2.trim()) return
+    if (profile.tier === 0 && !activeRoom.is_main) return
+
     const optimistic = {
-      id: `temp-${Date.now()}`, room_id: activeRoom.id, user_id: profile.id,
-      content: input2.trim(), created_at: new Date().toISOString(),
-      profiles: { username: profile.username, accent_color: profile.accent_color, home_neighborhood_id: profile.home_neighborhood_id, neighborhoods: homeNeighborhood ? { name: homeNeighborhood.name } : null }
+      id: `temp-${Date.now()}`,
+      room_id: activeRoom.id,
+      user_id: profile.id,
+      content: input2.trim(),
+      created_at: new Date().toISOString(),
+      profiles: {
+        username: profile.username,
+        accent_color: profile.accent_color,
+        home_neighborhood_id: profile.home_neighborhood_id,
+        neighborhoods: homeNeighborhood ? { name: homeNeighborhood.name } : null
+      }
     }
+
     setMessages(prev => [...prev, optimistic])
     setInput2('')
-    const { error } = await supabase.from('messages').insert({ room_id: activeRoom.id, user_id: profile.id, content: optimistic.content })
-    if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); setInput2(optimistic.content) }
-    else { fetch('/api/push/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomId: activeRoom.id, message: optimistic.content, senderUsername: profile.username }) }) }
+
+    const { error } = await supabase.from('messages').insert({
+      room_id: activeRoom.id,
+      user_id: profile.id,
+      content: optimistic.content
+    })
+
+    if (error) {
+      setMessages(prev => prev.filter(m => m.id !== optimistic.id))
+      setInput2(optimistic.content)
+    } else {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: activeRoom.id,
+          message: optimistic.content,
+          senderUsername: profile.username
+        })
+      })
+    }
   }
 
-  async function deleteMessage(msgId) {
-    setDeleteTarget(null)
-    setMessages(prev => prev.filter(m => m.id !== msgId))
-    await supabase.from('messages').delete().eq('id', msgId).eq('user_id', profile.id)
+  function isVisitor(msg) {
+    if (!isVisiting) return false
+    return msg.user_id === profile?.id
   }
-
-  function handlePressStart(msg) {
-    if (msg.user_id !== profile?.id) return
-    pressTimer.current = setTimeout(() => setDeleteTarget(msg.id), 500)
-  }
-
-  function handlePressEnd() {
-    clearTimeout(pressTimer.current)
-  }
-
-  function isVisitor(msg) { return isVisiting && msg.user_id === profile?.id }
 
   function isOutOfTowner(msg) {
-    if (isVisiting || !activeRoom) return false
-    return msg.profiles?.home_neighborhood_id && msg.profiles.home_neighborhood_id !== homeNeighborhood?.id
+    if (isVisiting) return false
+    if (!activeRoom) return false
+    const msgHomeHood = msg.profiles?.home_neighborhood_id
+    const roomNeighborhoodId = homeNeighborhood?.id
+    return msgHomeHood && msgHomeHood !== roomNeighborhoodId
   }
 
   function canChat() {
     if (activeRoom?.is_main) return true
     if (profile?.tier === 0) return false
     if (activeRoom?.is_secret) return profile?.tier === 7
-    if (activeRoom?.is_private) return profile?.tier === 7 || rooms.find(r => r.id === activeRoom.id) !== undefined
+    if (activeRoom?.is_private) {
+      if (profile?.tier === 7) return true
+      return rooms.find(r => r.id === activeRoom.id) !== undefined
+    }
     return profile?.tier >= 3
   }
 
-  function lockedReason() {
-    if (activeRoom?.is_secret) return 'Secret Rooms are Pro only'
-    if (profile?.tier === 0) return 'Join Plus to chat in this room'
-    return 'You need an invite to chat here'
-  }
-
   function hexToHue(hex) {
-    const r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255
-    const max=Math.max(r,g,b), min=Math.min(r,g,b)
-    if (max===min) return 0
-    const d=max-min
-    let h=max===r?(g-b)/d+(g<b?6:0):max===g?(b-r)/d+2:(r-g)/d+4
+    const r = parseInt(hex.slice(1,3),16)/255
+    const g = parseInt(hex.slice(3,5),16)/255
+    const b = parseInt(hex.slice(5,7),16)/255
+    const max = Math.max(r,g,b), min = Math.min(r,g,b)
+    if (max === min) return 0
+    const d = max - min
+    let h = max === r ? (g-b)/d+(g<b?6:0) : max === g ? (b-r)/d+2 : (r-g)/d+4
     return Math.round(h*60)
   }
 
   function hueToHex(h) {
-    const f=(n)=>{const k=(n+h/60)%6;return Math.round((1-Math.max(0,Math.min(k,4-k,1)))*255)}
+    const f = (n) => {
+      const k = (n+h/60)%6
+      return Math.round((1-Math.max(0,Math.min(k,4-k,1)))*255)
+    }
     const r=f(5),g=f(3),b=f(1)
     return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`
   }
 
   async function handleHueChange(h) {
+    // Only Plus+ can change accent color
     if (profile?.tier === 0) return
-    setHue(h); const color=hueToHex(h); setAccent(color)
+    setHue(h)
+    const color = hueToHex(h)
+    setAccent(color)
     await supabase.from('profiles').update({ accent_color: color }).eq('id', profile.id)
   }
 
+  // Get the active room's theme color and font (falls back to user accent)
   const roomColor = activeRoom?.theme_color || accent
   const roomFont = activeRoom?.theme_font || 'sans-serif'
 
@@ -251,45 +325,87 @@ export default function ChatPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden' }}>
 
-      {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />}
+      {sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />
+      )}
 
+      {/* Secret Room countdown banner */}
       {activeRoom?.is_secret && secretCountdown && (
-        <div style={{ background: '#1a0a1f', borderBottom: '1px solid #ce93d833', padding: '8px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{
+          background: '#1a0a1f',
+          borderBottom: '1px solid #ce93d833',
+          padding: '8px 16px',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+          flexShrink: 0
+        }}>
           <span style={{ fontSize: 11, color: '#ce93d8', letterSpacing: '0.1em', textTransform: 'uppercase' }}>🔒 Secret Session</span>
-          <span style={{ fontFamily: 'monospace', fontSize: 15, fontWeight: 800, color: secretCountdown === '00:00:00' ? '#ff4444' : '#ce93d8', letterSpacing: '0.05em' }}>{secretCountdown}</span>
+          <span style={{
+            fontFamily: 'monospace', fontSize: 15, fontWeight: 800,
+            color: secretCountdown === '00:00:00' ? '#ff4444' : '#ce93d8',
+            letterSpacing: '0.05em'
+          }}>
+            {secretCountdown}
+          </span>
           <span style={{ fontSize: 11, color: '#664477', letterSpacing: '0.1em', textTransform: 'uppercase' }}>remaining</span>
         </div>
       )}
 
       {/* Sidebar */}
-      <div style={{ position: 'fixed', top: 0, left: 0, height: '100%', width: 270, background: '#111', zIndex: 20, display: 'flex', flexDirection: 'column', transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', borderRight: `1px solid ${accent}33` }}>
+      <div style={{
+        position: 'fixed', top: 0, left: 0, height: '100%', width: 270,
+        background: '#111', zIndex: 20, display: 'flex', flexDirection: 'column',
+        transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+        transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)',
+        borderRight: `1px solid ${accent}33`
+      }}>
         <div style={{ padding: '24px 18px 14px', borderBottom: `1px solid ${accent}22` }}>
           <div style={{ fontWeight: 800, fontSize: 20, color: accent, letterSpacing: '-0.5px' }}>Dopechatz</div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-          <div style={{ padding: '8px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>🏠 {homeNeighborhood?.name || 'Home'}</div>
+          <div style={{ padding: '8px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+            🏠 {homeNeighborhood?.name || 'Home'}
+          </div>
 
-          {rooms.filter(r => !r.is_secret).map(room => {
-            const isActive = activeRoom?.id === room.id && !isVisiting
-            const isFreeBlocked = profile?.tier === 0 && !room.is_main
-            const rColor = room.theme_color || accent
-            return (
-              <div key={room.id} onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
-                style={{ padding: '12px 18px', cursor: 'pointer', background: isActive ? `${rColor}18` : 'transparent', borderLeft: isActive ? `3px solid ${rColor}` : '3px solid transparent', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: isActive ? rColor : isFreeBlocked ? '#3a3a3a' : '#aaa', transition: 'all 0.15s ease', fontFamily: room.theme_font || 'sans-serif' }}>
-                <span>{room.name}</span>
-                {room.is_main && <span style={{ fontSize: 10, color: rColor, opacity: 0.5, marginLeft: 'auto' }}>★</span>}
-                {isFreeBlocked && <span style={{ fontSize: 9, color: '#333', marginLeft: 'auto', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1px 6px' }}>Plus</span>}
-              </div>
-            )
-          })}
+          {/* Normal rooms */}
+          {rooms.filter(r => !r.is_secret).map(room => (
+            <div
+              key={room.id}
+              onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
+              style={{
+                padding: '12px 18px', cursor: 'pointer',
+                background: activeRoom?.id === room.id && !isVisiting ? `${room.theme_color || accent}18` : 'transparent',
+                borderLeft: activeRoom?.id === room.id && !isVisiting ? `3px solid ${room.theme_color || accent}` : '3px solid transparent',
+                fontSize: 14, display: 'flex', alignItems: 'center', gap: 8,
+                color: activeRoom?.id === room.id && !isVisiting ? (room.theme_color || accent) : '#aaa',
+                transition: 'all 0.15s ease',
+                fontFamily: room.theme_font || 'sans-serif'
+              }}
+            >
+              <span>{room.name}</span>
+              {room.is_main && <span style={{ fontSize: 10, color: room.theme_color || accent, opacity: 0.5, marginLeft: 'auto' }}>★</span>}
+            </div>
+          ))}
 
+          {/* Secret rooms — Pro only, separated */}
           {rooms.filter(r => r.is_secret).length > 0 && (
             <>
-              <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#664477', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>🔒 Secret Rooms</div>
+              <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#664477', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                🔒 Secret Rooms
+              </div>
               {rooms.filter(r => r.is_secret).map(room => (
-                <div key={room.id} onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
-                  style={{ padding: '12px 18px', cursor: 'pointer', background: activeRoom?.id === room.id && !isVisiting ? '#ce93d818' : 'transparent', borderLeft: activeRoom?.id === room.id && !isVisiting ? '3px solid #ce93d8' : '3px solid transparent', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: activeRoom?.id === room.id && !isVisiting ? '#ce93d8' : '#664477', transition: 'all 0.15s ease' }}>
+                <div
+                  key={room.id}
+                  onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
+                  style={{
+                    padding: '12px 18px', cursor: 'pointer',
+                    background: activeRoom?.id === room.id && !isVisiting ? '#ce93d818' : 'transparent',
+                    borderLeft: activeRoom?.id === room.id && !isVisiting ? '3px solid #ce93d8' : '3px solid transparent',
+                    fontSize: 14, display: 'flex', alignItems: 'center', gap: 8,
+                    color: activeRoom?.id === room.id && !isVisiting ? '#ce93d8' : '#664477',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
                   <span>{room.name}</span>
                   <span style={{ fontSize: 10, color: '#664477', marginLeft: 'auto' }}>secret</span>
                 </div>
@@ -299,10 +415,21 @@ export default function ChatPage() {
 
           {visitingRooms.length > 0 && (
             <>
-              <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>📍 {currentNeighborhood?.name || 'Nearby'}</div>
+              <div style={{ padding: '16px 18px 4px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                📍 {currentNeighborhood?.name || 'Nearby'}
+              </div>
               {visitingRooms.map(room => (
-                <div key={room.id} onClick={() => { setActiveRoom(room); setIsVisiting(true); setSidebarOpen(false) }}
-                  style={{ padding: '12px 18px', cursor: 'pointer', background: activeRoom?.id === room.id && isVisiting ? `${accent}18` : 'transparent', borderLeft: activeRoom?.id === room.id && isVisiting ? `3px solid ${accent}` : '3px solid transparent', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: activeRoom?.id === room.id && isVisiting ? accent : '#aaa' }}>
+                <div
+                  key={room.id}
+                  onClick={() => { setActiveRoom(room); setIsVisiting(true); setSidebarOpen(false) }}
+                  style={{
+                    padding: '12px 18px', cursor: 'pointer',
+                    background: activeRoom?.id === room.id && isVisiting ? `${accent}18` : 'transparent',
+                    borderLeft: activeRoom?.id === room.id && isVisiting ? `3px solid ${accent}` : '3px solid transparent',
+                    fontSize: 14, display: 'flex', alignItems: 'center', gap: 8,
+                    color: activeRoom?.id === room.id && isVisiting ? accent : '#aaa',
+                  }}
+                >
                   <span>{room.name}</span>
                   <span style={{ fontSize: 10, color: '#555', marginLeft: 'auto' }}>visiting</span>
                 </div>
@@ -311,35 +438,41 @@ export default function ChatPage() {
           )}
         </div>
 
+        {/* Active users */}
         {activeUsers.length > 0 && (
           <div style={{ borderTop: `1px solid ${accent}22`, padding: '8px 0' }}>
-            <div onClick={() => setShowActive(!showActive)} style={{ padding: '8px 18px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div
+              onClick={() => setShowActive(!showActive)}
+              style={{ padding: '8px 18px', fontSize: 10, color: '#444', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+            >
               <span>⚡ Active Now ({activeUsers.length})</span>
               <span>{showActive ? '▾' : '▸'}</span>
             </div>
-            {showActive && (
-              <>
-                {profile?.tier !== 7 && (
-                  <div style={{ padding: '4px 18px 8px', fontSize: 11, color: '#444' }}>
-                    <span onClick={() => router.push('/upgrade')} style={{ color: accent, cursor: 'pointer', textDecoration: 'underline' }}>Upgrade to Pro</span>{' '}to send DMs
-                  </div>
-                )}
-                {activeUsers.map(u => (
-                  <div key={u.id} onClick={() => { if (profile?.tier !== 7) { router.push('/upgrade'); return } router.push('/dm/' + u.id) }}
-                    style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', opacity: profile?.tier !== 7 ? 0.4 : 1 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
-                    <span style={{ fontSize: 13, color: u.accent_color || '#aaa', fontWeight: 600 }}>{u.username}</span>
-                  </div>
-                ))}
-              </>
-            )}
+            {showActive && activeUsers.map(u => (
+              <div
+                key={u.id}
+                onClick={() => {
+                  if (profile?.tier !== 7) { router.push('/upgrade'); return }
+                  router.push('/dm/' + u.id)
+                }}
+                style={{ padding: '8px 18px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 6px #00ff88' }} />
+                <span style={{ fontSize: 13, color: u.accent_color || '#aaa', fontWeight: 600 }}>{u.username}</span>
+                {profile?.tier !== 7 && <span style={{ fontSize: 10, color: '#444', marginLeft: 'auto' }}>Pro</span>}
+              </div>
+            ))}
           </div>
         )}
 
+        {/* Profile / settings */}
         <div style={{ padding: '14px 18px', borderTop: `1px solid ${accent}22` }}>
           <div style={{ fontWeight: 600, fontSize: 13, color: '#fff' }}>{profile?.username}</div>
-          <div style={{ fontSize: 11, color: '#444', marginBottom: 12 }}>{profile?.tier === 0 ? 'Free' : profile?.tier === 3 ? 'Plus' : 'Pro'}</div>
+          <div style={{ fontSize: 11, color: '#444', marginBottom: 12 }}>
+            {profile?.tier === 0 ? 'Free' : profile?.tier === 3 ? 'Plus' : 'Pro'}
+          </div>
 
+          {/* Color picker — Plus+ only */}
           {profile?.tier >= 3 ? (
             <>
               <div onClick={() => setShowColorPicker(!showColorPicker)} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
@@ -355,35 +488,59 @@ export default function ChatPage() {
             </>
           ) : (
             <div style={{ fontSize: 11, color: '#333', marginBottom: 10 }}>
-              🎨 <span onClick={() => router.push('/upgrade')} style={{ color: accent, cursor: 'pointer', textDecoration: 'underline' }}>Plus</span>
-              <span style={{ color: '#444' }}> to customize colors</span>
+              🎨 <span style={{ color: '#444' }}>Accent color — </span>
+              <span
+                onClick={() => router.push('/upgrade')}
+                style={{ color: accent, cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Plus only
+              </span>
             </div>
           )}
 
-          <button onClick={refreshLocation} style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}>📍 Refresh location</button>
+          <button onClick={refreshLocation} style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}>
+            📍 Refresh location
+          </button>
 
-          <div onClick={async () => { const n=!profile.status_public; await supabase.from('profiles').update({ status_public: n }).eq('id', profile.id); setProfile(prev => ({ ...prev, status_public: n })) }}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}>
+          <div
+            onClick={async () => {
+              const newStatus = !profile.status_public
+              await supabase.from('profiles').update({ status_public: newStatus }).eq('id', profile.id)
+              setProfile(prev => ({ ...prev, status_public: newStatus }))
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 10 }}
+          >
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: profile?.status_public ? '#00ff88' : '#444', boxShadow: profile?.status_public ? '0 0 6px #00ff88' : 'none' }} />
             <span style={{ fontSize: 12, color: '#666' }}>{profile?.status_public ? 'Active status on' : 'Active status off'}</span>
           </div>
 
           {profile?.tier === 0 && (
-            <button onClick={() => router.push('/upgrade')} style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>Upgrade</button>
+            <button onClick={() => router.push('/upgrade')} style={{ width: '100%', padding: '10px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', marginBottom: 10 }}>
+              Upgrade
+            </button>
           )}
+
           {profile?.tier > 0 && (
-            <button onClick={() => router.push('/create-room')} style={{ width: '100%', padding: '8px', fontSize: 12, color: accent, background: 'none', border: '1px solid ' + accent + '44', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>+ New Room</button>
+            <button
+              onClick={() => router.push('/create-room')}
+              style={{ width: '100%', padding: '8px', fontSize: 12, color: accent, background: 'none', border: '1px solid ' + accent + '44', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}
+            >
+              + New Room
+            </button>
           )}
-          {profile?.tier === 7 && (
-            <button onClick={() => router.push('/contacts')} style={{ width: '100%', padding: '8px', fontSize: 12, color: '#ce93d8', background: 'none', border: '1px solid #ce93d844', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>💬 Contacts</button>
-          )}
-          <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Sign out</button>
+
+          <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            Sign out
+          </button>
         </div>
       </div>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '0 16px', height: 56, borderBottom: `1px solid ${roomColor}22`, background: '#111', flexShrink: 0 }}>
-        <button onClick={() => setSidebarOpen(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 10px 10px 4px', display: 'flex', flexDirection: 'column', gap: 5, borderRadius: 8 }}>
+        <button
+          onClick={() => setSidebarOpen(v => !v)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 10px 10px 4px', display: 'flex', flexDirection: 'column', gap: 5, borderRadius: 8 }}
+        >
           <div style={{ width: 24, height: 2, background: roomColor, borderRadius: 2, transform: sidebarOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none', transition: 'transform 0.25s ease' }} />
           <div style={{ width: 24, height: 2, background: roomColor, borderRadius: 2, opacity: sidebarOpen ? 0 : 1, transition: 'opacity 0.2s ease' }} />
           <div style={{ width: 24, height: 2, background: roomColor, borderRadius: 2, transform: sidebarOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none', transition: 'transform 0.25s ease' }} />
@@ -392,26 +549,19 @@ export default function ChatPage() {
           <div style={{ fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: activeRoom?.is_secret ? '#ce93d8' : '#fff', fontFamily: roomFont }}>
             {activeRoom?.is_secret && '🔒 '}{activeRoom?.name}
           </div>
-          {isVisiting && currentNeighborhood && <div style={{ fontSize: 11, color: roomColor }}>📍 Visiting {currentNeighborhood.name}</div>}
+          {isVisiting && currentNeighborhood && (
+            <div style={{ fontSize: 11, color: roomColor }}>📍 Visiting {currentNeighborhood.name}</div>
+          )}
         </div>
         {activeRoom?.created_by === profile?.id && (
-          <button onClick={() => router.push('/invite?room=' + activeRoom.id)} style={{ background: 'none', border: '1px solid ' + roomColor + '44', borderRadius: 6, color: roomColor, fontSize: 12, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}>+ Invite</button>
+          <button
+            onClick={() => router.push('/invite?room=' + activeRoom.id)}
+            style={{ background: 'none', border: '1px solid ' + roomColor + '44', borderRadius: 6, color: roomColor, fontSize: 12, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}
+          >
+            + Invite
+          </button>
         )}
       </div>
-
-      {/* Delete confirmation overlay */}
-      {deleteTarget && (
-        <div onClick={() => setDeleteTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 40px' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 16, padding: '24px 20px', width: '100%', maxWidth: 360, margin: '0 16px' }}>
-            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Delete message?</div>
-            <div style={{ fontSize: 13, color: '#555', marginBottom: 24 }}>This removes the message for everyone. This can't be undone.</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setDeleteTarget(null)} style={{ flex: 1, padding: '12px', background: 'none', border: '1px solid #333', borderRadius: 10, color: '#aaa', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={() => deleteMessage(deleteTarget)} style={{ flex: 1, padding: '12px', background: '#ff4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', background: activeRoom?.is_secret ? '#0d000f' : '#000' }}>
@@ -420,28 +570,39 @@ export default function ChatPage() {
           const outOfTowner = isOutOfTowner(msg)
           const visitor = isVisitor(msg)
           const homeHoodName = msg.profiles?.neighborhoods?.name
-          const isMyMsg = msg.user_id === profile?.id
+
           return (
-            <div key={msg.id} style={{ marginBottom: 18, userSelect: 'none' }}
-              onTouchStart={() => handlePressStart(msg)}
-              onTouchEnd={handlePressEnd}
-              onTouchMove={handlePressEnd}
-              onMouseDown={() => handlePressStart(msg)}
-              onMouseUp={handlePressEnd}
-              onMouseLeave={handlePressEnd}
-            >
+            <div key={msg.id} style={{ marginBottom: 18 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 700, fontSize: 13, color: msgAccent, fontFamily: roomFont }}>{msg.profiles?.username}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, color: msgAccent, fontFamily: roomFont }}>
+                  {msg.profiles?.username}
+                </span>
                 {outOfTowner && homeHoodName && (
-                  <span style={{ fontSize: 10, color: msgAccent, opacity: 0.7, border: `1px solid ${msgAccent}44`, borderRadius: 10, padding: '1px 7px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>🌍 from {homeHoodName}</span>
+                  <span style={{
+                    fontSize: 10, color: msgAccent, opacity: 0.7,
+                    border: `1px solid ${msgAccent}44`,
+                    borderRadius: 10, padding: '1px 7px',
+                    display: 'inline-flex', alignItems: 'center', gap: 3
+                  }}>
+                    🌍 from {homeHoodName}
+                  </span>
                 )}
                 {visitor && (
-                  <span style={{ fontSize: 10, color: accent, opacity: 0.7, border: `1px solid ${accent}44`, borderRadius: 10, padding: '1px 7px' }}>📍 visiting</span>
+                  <span style={{
+                    fontSize: 10, color: accent, opacity: 0.7,
+                    border: `1px solid ${accent}44`,
+                    borderRadius: 10, padding: '1px 7px'
+                  }}>
+                    📍 visiting
+                  </span>
                 )}
-                <span style={{ fontSize: 11, color: '#333' }}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                {isMyMsg && <span style={{ fontSize: 10, color: '#222', marginLeft: 2 }}>· hold to delete</span>}
+                <span style={{ fontSize: 11, color: '#333' }}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
               </div>
-              <div style={{ fontSize: 15, marginTop: 3, color: msgAccent === '#888' ? '#ddd' : msgAccent + 'cc', lineHeight: 1.4, fontFamily: roomFont }}>{msg.content}</div>
+              <div style={{ fontSize: 15, marginTop: 3, color: msgAccent === '#888' ? '#ddd' : msgAccent + 'cc', lineHeight: 1.4, fontFamily: roomFont }}>
+                {msg.content}
+              </div>
             </div>
           )
         })}
@@ -452,17 +613,25 @@ export default function ChatPage() {
       <div style={{ padding: '10px 12px', borderTop: `1px solid ${roomColor}22`, display: 'flex', gap: 8, background: '#111', flexShrink: 0 }}>
         {canChat() ? (
           <>
-            <input value={input2} onChange={e => setInput2(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()}
+            <input
+              value={input2}
+              onChange={e => setInput2(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && sendMessage()}
               placeholder={isVisiting ? `Chatting in ${currentNeighborhood?.name}...` : activeRoom?.is_secret ? 'This message will vanish...' : 'Say something...'}
-              style={{ flex: 1, padding: '11px 14px', fontSize: 15, border: `1px solid ${roomColor}33`, borderRadius: 10, background: '#1a1a1a', color: '#fff', outline: 'none', fontFamily: roomFont }} />
-            <button onClick={sendMessage} style={{ padding: '11px 20px', background: activeRoom?.is_secret ? '#ce93d8' : roomColor, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>Send</button>
+              style={{ flex: 1, padding: '11px 14px', fontSize: 15, border: `1px solid ${roomColor}33`, borderRadius: 10, background: '#1a1a1a', color: '#fff', outline: 'none', fontFamily: roomFont }}
+            />
+            <button onClick={sendMessage} style={{ padding: '11px 20px', background: activeRoom?.is_secret ? '#ce93d8' : roomColor, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+              Send
+            </button>
           </>
         ) : (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0' }}>
-            <span style={{ fontSize: 13, color: '#444' }}>{lockedReason()}</span>
-            {profile?.tier === 0 && (
-              <button onClick={() => router.push('/upgrade')} style={{ padding: '8px 14px', background: accent, color: '#000', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 12, cursor: 'pointer', flexShrink: 0 }}>Upgrade</button>
-            )}
+          <div style={{ fontSize: 14, color: '#444', padding: '10px 0' }}>
+            {profile?.tier === 0
+              ? 'Upgrade to Plus to chat here'
+              : activeRoom?.is_secret
+              ? 'Secret Rooms are Pro only'
+              : 'You need an invite to chat here'
+            }
           </div>
         )}
       </div>

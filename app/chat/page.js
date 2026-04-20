@@ -163,6 +163,8 @@ export default function ChatPage() {
   }
 
   async function refreshLocation() {
+    alert("Refreshing location...")
+    alert("Refreshing location...")
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (profile.home_neighborhood_id || profile.neighborhood_id)) {
       setCurrentNeighborhood(currentHood)

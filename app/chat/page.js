@@ -6,6 +6,12 @@ import { supabase } from '@/lib/supabase'
 import { detectCurrentNeighborhood } from '@/lib/neighborhood'
 import { subscribeToPush } from '@/lib/push'
 
+const CATEGORY_EMOJI = {
+  general: '🏠', dating: '💘', events: '🎉', marketplace: '🛍️',
+  services: '🔧', cars: '🚗', music: '🎵', arts: '🎨',
+  faith: '🕊️', pets: '🐾', food: '🍜', rants: '😤'
+}
+
 export default function ChatPage() {
   const router = useRouter()
   const [profile, setProfile] = useState(null)
@@ -27,6 +33,9 @@ export default function ChatPage() {
   const [secretCountdown, setSecretCountdown] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [showHomeRooms, setShowHomeRooms] = useState(true)
+  const [showVisitingRooms, setShowVisitingRooms] = useState(true)
+  const [deleteRoomTarget, setDeleteRoomTarget] = useState(null)
   const bottomRef = useRef(null)
   const countdownRef = useRef(null)
   const pressTimer = useRef(null)
@@ -198,7 +207,18 @@ export default function ChatPage() {
     await supabase.from('messages').delete().eq('id', msgId).eq('user_id', profile.id)
   }
 
-  function handlePressStart(msg) {
+
+  async function deleteRoom(roomId) {
+    setDeleteRoomTarget(null)
+    await supabase.from('messages').delete().eq('room_id', roomId)
+    await supabase.from('room_members').delete().eq('room_id', roomId)
+    await supabase.from('rooms').delete().eq('id', roomId).eq('created_by', profile.id)
+    const mainRoom = rooms.find(r => r.is_main)
+    if (mainRoom) setActiveRoom(mainRoom)
+    setRooms(prev => prev.filter(r => r.id !== roomId))
+  }
+
+    function handlePressStart(msg) {
     if (msg.user_id !== profile?.id) return
     pressTimer.current = setTimeout(() => setDeleteTarget(msg.id), 500)
   }
@@ -411,10 +431,26 @@ export default function ChatPage() {
           </div>
           {isVisiting && currentNeighborhood && <div style={{ fontSize: 11, color: roomColor }}>📍 Visiting {currentNeighborhood.name}</div>}
         </div>
-        {activeRoom?.created_by === profile?.id && (
-          <button onClick={() => router.push('/invite?room=' + activeRoom.id)} style={{ background: 'none', border: '1px solid ' + roomColor + '44', borderRadius: 6, color: roomColor, fontSize: 12, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}>+ Invite</button>
+        {activeRoom?.created_by === profile?.id && !activeRoom?.is_main && (
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={() => router.push('/invite?room=' + activeRoom.id)} style={{ background: 'none', border: '1px solid ' + roomColor + '44', borderRadius: 6, color: roomColor, fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}>+ Invite</button>
+            <button onClick={() => setDeleteRoomTarget(activeRoom.id)} style={{ background: 'none', border: '1px solid #ff444433', borderRadius: 6, color: '#ff4444', fontSize: 12, padding: '6px 10px', cursor: 'pointer' }}>🗑️</button>
+          </div>
         )}
       </div>
+
+      {deleteRoomTarget && (
+        <div onClick={() => setDeleteRoomTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 40px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 16, padding: '24px 20px', width: '100%', maxWidth: 360, margin: '0 16px' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Delete this room?</div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 24, lineHeight: 1.6 }}>This permanently deletes the room and all its messages. Cannot be undone.</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDeleteRoomTarget(null)} style={{ flex: 1, padding: '12px', background: 'none', border: '1px solid #333', borderRadius: 10, color: '#aaa', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteRoom(deleteRoomTarget)} style={{ flex: 1, padding: '12px', background: '#ff4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>Delete Room</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* First-time onboarding overlay */}
       {showOnboarding && (

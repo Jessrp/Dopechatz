@@ -414,7 +414,24 @@ export default function ChatPage() {
             <button onClick={() => router.push('/contacts')} style={{ width: '100%', padding: '8px', fontSize: 12, color: '#ce93d8', background: 'none', border: '1px solid #ce93d844', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>💬 Contacts</button>
           )}
           <button onClick={() => router.push('/help')} style={{ width: '100%', padding: '8px', fontSize: 12, color: '#555', background: 'none', border: '1px solid #222', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>? Help & Features</button>
-          <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Sign out</button>
+          <button
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({
+                  title: 'Dopechatz',
+                  text: "Hey, check out Dopechatz — it's a free anonymous chat app for your neighborhood. No sign up BS, just your location.",
+                  url: 'https://dopechatz.vercel.app'
+                })
+              } else {
+                navigator.clipboard.writeText('https://dopechatz.vercel.app')
+                alert('Link copied!')
+              }
+            }}
+            style={{ width: '100%', padding: '8px', fontSize: 12, color: '#00ffdd', background: 'none', border: '1px solid #00ffdd33', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}
+          >
+            📤 Share Dopechatz
+          </button>
+                    <button onClick={() => supabase.auth.signOut().then(() => router.push('/login'))} style={{ fontSize: 11, color: '#444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Sign out</button>
         </div>
       </div>
 

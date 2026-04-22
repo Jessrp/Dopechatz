@@ -319,7 +319,7 @@ export default function ChatPage() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: viewHeight, background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden', fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: viewHeight, background: '#000', color: '#fff', fontFamily: roomFont, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />}
 

@@ -364,11 +364,7 @@ export default function DMPage() {
       <div style={{ padding: '10px 12px', borderTop: `1px solid ${destructMode ? '#ff6b6b22' : accent + '22'}`, display: 'flex', gap: 8, background: '#111', flexShrink: 0 }}>
         <textarea
           value={input}
-          onChange={e => {
-            setInput(e.target.value)
-            e.target.style.height = 'auto'
-            e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
-          }}
+          onChange={e => setInput(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
           }}

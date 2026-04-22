@@ -118,7 +118,7 @@ export default function ChatPage() {
     const { data: homeHood } = await supabase.from('neighborhoods').select('*').eq('id', prof.home_neighborhood_id || prof.neighborhood_id).single()
     setHomeNeighborhood(homeHood)
     await loadRooms(prof, homeHood)
-    await loadActiveUsers(homeHood?.id || prof.neighborhood_id)
+    await loadActiveUsers(homeHood?.id || prof.neighborhood_id, prof.id)
 
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
@@ -160,32 +160,24 @@ export default function ChatPage() {
     if (visible.length > 0) setActiveRoom(visible[0])
   }
 
-  async function loadActiveUsers(neighborhoodId) {
+  async function loadActiveUsers(neighborhoodId, currentUserId) {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const { data: { user } } = await supabase.auth.getUser()
-    // Fetch by neighborhood_id
-    const { data: d1 } = await supabase
+    // Get ALL nearby neighborhood IDs to cast a wider net
+    const { data: allNeighborhoods } = await supabase
+      .from('neighborhoods')
+      .select('id')
+    const neighborhoodIds = (allNeighborhoods || []).map(n => n.id)
+    // Fetch all active non-bot users across ALL neighborhoods
+    const { data } = await supabase
       .from('profiles')
-      .select('id, username, accent_color, last_seen, status_public, tier')
-      .eq('neighborhood_id', neighborhoodId)
+      .select('id, username, accent_color, last_seen, status_public, tier, neighborhood_id')
       .eq('status_public', true)
       .eq('is_bot', false)
-      .neq('id', user?.id)
+      .neq('id', currentUserId)
       .gte('last_seen', oneDayAgo)
-    // Fetch by home_neighborhood_id
-    const { data: d2 } = await supabase
-      .from('profiles')
-      .select('id, username, accent_color, last_seen, status_public, tier')
-      .eq('home_neighborhood_id', neighborhoodId)
-      .eq('status_public', true)
-      .eq('is_bot', false)
-      .neq('id', user?.id)
-      .gte('last_seen', oneDayAgo)
-    // Merge and deduplicate
-    const merged = [...(d1 || []), ...(d2 || [])]
-    const unique = merged.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
-    unique.sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen))
-    setActiveUsers(unique.slice(0, 20))
+      .order('last_seen', { ascending: false })
+      .limit(20)
+    setActiveUsers(data || [])
   }
 
   async function loadVisitingRooms(hood) {

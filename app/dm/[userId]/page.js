@@ -52,7 +52,9 @@ export default function DMPage() {
   useEffect(() => { loadData() }, [userId])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
   }, [messages])
 
   // Tick every second to update countdown timers and purge expired messages

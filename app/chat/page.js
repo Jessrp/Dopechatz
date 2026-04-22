@@ -91,7 +91,9 @@ export default function ChatPage() {
   }, [activeRoom])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (bottomRef.current) {
+      bottomRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
   }, [messages])
 
   function startCountdown(expiresAt) {
@@ -562,7 +564,7 @@ export default function ChatPage() {
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', background: activeRoom?.is_secret ? '#0d000f' : '#000' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', background: activeRoom?.is_secret ? '#0d000f' : '#000', overflowAnchor: 'auto' }}>
         {messages.map(msg => {
           const msgAccent = msg.profiles?.accent_color || '#888'
           const outOfTowner = isOutOfTowner(msg)

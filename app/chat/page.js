@@ -576,9 +576,15 @@ export default function ChatPage() {
       <div style={{ padding: '10px 12px', borderTop: `1px solid ${roomColor}22`, display: 'flex', gap: 8, background: '#111', flexShrink: 0 }}>
         {canChat() ? (
           <>
-            <input value={input2} onChange={e => setInput2(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage()}
+            <textarea value={input2} onChange={e => {
+                setInput2(e.target.value)
+                e.target.style.height = 'auto'
+                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+              }} onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+              }}
               placeholder={isVisiting ? `Chatting in ${currentNeighborhood?.name}...` : activeRoom?.is_secret ? 'This message will vanish...' : 'Say something...'}
-              style={{ flex: 1, padding: '11px 14px', fontSize: 15, border: `1px solid ${roomColor}33`, borderRadius: 10, background: '#1a1a1a', color: '#fff', outline: 'none', fontFamily: roomFont }} />
+              rows={1} style={{ flex: 1, padding: '11px 14px', fontSize: 15, border: `1px solid ${roomColor}33`, borderRadius: 10, background: '#1a1a1a', color: '#fff', outline: 'none', fontFamily: roomFont, resize: 'none', lineHeight: '1.4', maxHeight: '120px', overflowY: 'auto' }}></textarea>
             <button onClick={sendMessage} style={{ padding: '11px 20px', background: activeRoom?.is_secret ? '#ce93d8' : roomColor, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>Send</button>
           </>
         ) : (

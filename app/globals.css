@@ -46,3 +46,15 @@ body {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
+
+/* Fix Android keyboard pushing viewport */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Use dynamic viewport height */
+.chat-root {
+  height: 100dvh;
+  height: 100vh;
+}

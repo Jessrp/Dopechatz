@@ -232,7 +232,7 @@ export default function DMPage() {
   const otherAccent = other?.accent_color || '#888'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#000', color: '#fff', fontFamily: 'sans-serif' }}>
+    <div style={{ background: '#000', color: '#fff', fontFamily: 'sans-serif', paddingBottom: '80px' }}>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', height: 56, borderBottom: `1px solid ${accent}22`, background: '#111', flexShrink: 0 }}>
@@ -294,7 +294,7 @@ export default function DMPage() {
       )}
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
+      <div style={{ padding: '16px', minHeight: '60vh' }}>
         {messages.length === 0 && (
           <p style={{ color: '#333', fontSize: 14, textAlign: 'center', marginTop: 40 }}>
             Start a conversation with {other?.username}

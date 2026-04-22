@@ -163,17 +163,29 @@ export default function ChatPage() {
   async function loadActiveUsers(neighborhoodId) {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase
+    // Fetch by neighborhood_id
+    const { data: d1 } = await supabase
       .from('profiles')
       .select('id, username, accent_color, last_seen, status_public, tier')
-      .or(`neighborhood_id.eq.${neighborhoodId},home_neighborhood_id.eq.${neighborhoodId}`)
+      .eq('neighborhood_id', neighborhoodId)
       .eq('status_public', true)
       .eq('is_bot', false)
       .neq('id', user?.id)
       .gte('last_seen', oneDayAgo)
-      .order('last_seen', { ascending: false })
-      .limit(20)
-    setActiveUsers(data || [])
+    // Fetch by home_neighborhood_id
+    const { data: d2 } = await supabase
+      .from('profiles')
+      .select('id, username, accent_color, last_seen, status_public, tier')
+      .eq('home_neighborhood_id', neighborhoodId)
+      .eq('status_public', true)
+      .eq('is_bot', false)
+      .neq('id', user?.id)
+      .gte('last_seen', oneDayAgo)
+    // Merge and deduplicate
+    const merged = [...(d1 || []), ...(d2 || [])]
+    const unique = merged.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i)
+    unique.sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen))
+    setActiveUsers(unique.slice(0, 20))
   }
 
   async function loadVisitingRooms(hood) {

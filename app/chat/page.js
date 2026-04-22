@@ -35,6 +35,23 @@ export default function ChatPage() {
   const [secretCountdown, setSecretCountdown] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [viewHeight, setViewHeight] = useState('100dvh')
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (window.visualViewport) {
+        setViewHeight(window.visualViewport.height + 'px')
+      }
+    }
+    updateHeight()
+    window.visualViewport?.addEventListener('resize', updateHeight)
+    window.visualViewport?.addEventListener('scroll', updateHeight)
+    return () => {
+      window.visualViewport?.removeEventListener('resize', updateHeight)
+      window.visualViewport?.removeEventListener('scroll', updateHeight)
+    }
+  }, [])
+
   const [fontSize, setFontSize] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('dc_fontsize') || 'medium'
@@ -302,7 +319,7 @@ export default function ChatPage() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden', fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: viewHeight, background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden', fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />}
 

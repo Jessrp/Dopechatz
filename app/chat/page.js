@@ -12,6 +12,8 @@ const CATEGORY_EMOJI = {
   faith: '🕊️', pets: '🐾', food: '🍜', rants: '😤'
 }
 
+const FONT_SCALE = { small: 0.85, medium: 1, large: 1.2 }
+
 export default function ChatPage() {
   const router = useRouter()
   const [profile, setProfile] = useState(null)
@@ -33,6 +35,12 @@ export default function ChatPage() {
   const [secretCountdown, setSecretCountdown] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [fontSize, setFontSize] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('dc_fontsize') || 'medium'
+    }
+    return 'medium'
+  })
   const [showHomeRooms, setShowHomeRooms] = useState(true)
   const [showVisitingRooms, setShowVisitingRooms] = useState(true)
   const [deleteRoomTarget, setDeleteRoomTarget] = useState(null)
@@ -294,7 +302,7 @@ export default function ChatPage() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#000', color: '#fff', fontFamily: roomFont, position: 'relative', overflow: 'hidden', fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />}
 
@@ -410,6 +418,25 @@ export default function ChatPage() {
             </div>
           )}
 
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ fontSize: 11, color: '#444', marginBottom: 6 }}>Text size</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['small', 'medium', 'large'].map(size => (
+                <button key={size} onClick={() => {
+                  setFontSize(size)
+                  localStorage.setItem('dc_fontsize', size)
+                }} style={{
+                  flex: 1, padding: '6px 0', fontSize: 11,
+                  background: fontSize === size ? accent : 'transparent',
+                  color: fontSize === size ? '#000' : '#555',
+                  border: `1px solid ${fontSize === size ? accent : '#333'}`,
+                  borderRadius: 6, cursor: 'pointer', fontWeight: fontSize === size ? 700 : 400
+                }}>
+                  {size === 'small' ? 'A' : size === 'medium' ? 'A' : 'A'}
+                </button>
+              ))}
+            </div>
+          </div>
           <button onClick={refreshLocation} style={{ fontSize: 11, color: accent, background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 8, display: 'block' }}>📍 Refresh location</button>
 
           <div onClick={async () => { const n=!profile.status_public; await supabase.from('profiles').update({ status_public: n }).eq('id', profile.id); setProfile(prev => ({ ...prev, status_public: n })) }}

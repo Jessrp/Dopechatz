@@ -35,3 +35,14 @@ body {
 input, textarea {
   font-size: 16px !important;
 }
+
+/* Respect user's system font size preference */
+html {
+  font-size: 100%;
+}
+
+body {
+  font-size: 1rem;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}

@@ -162,7 +162,15 @@ export default function ChatPage() {
 
   async function loadActiveUsers(neighborhoodId) {
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString()
-    const { data } = await supabase.from('profiles').select('id, username, accent_color, last_seen, status_public, tier').eq('neighborhood_id', neighborhoodId).eq('status_public', true).gte('last_seen', fifteenMinsAgo)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, username, accent_color, last_seen, status_public, tier')
+      .eq('neighborhood_id', neighborhoodId)
+      .eq('status_public', true)
+      .eq('is_bot', false)
+      .neq('id', user?.id)
+      .gte('last_seen', fifteenMinsAgo)
     setActiveUsers(data || [])
   }
 

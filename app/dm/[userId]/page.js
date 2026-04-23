@@ -267,9 +267,9 @@ export default function DMPage() {
       {/* Self-destruct picker dropdown */}
       {showDestructPicker && (
         <div style={{
+          position: 'fixed', top: 56, left: 0, right: 0, zIndex: 99,
           background: '#111', borderBottom: `1px solid #ff6b6b22`,
-          padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap',
-          flexShrink: 0
+          padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap'
         }}>
           <div style={{ width: '100%', fontSize: 11, color: '#555', marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
             Self-destruct after
@@ -294,7 +294,7 @@ export default function DMPage() {
       )}
 
       {/* Messages */}
-      <div style={{ padding: '16px', paddingTop: '72px', minHeight: '60vh' }}>
+      <div style={{ padding: '16px', paddingTop: showDestructPicker ? '140px' : '72px', minHeight: '60vh', paddingBottom: '100px' }}>
         {messages.length === 0 && (
           <p style={{ color: '#333', fontSize: 14, textAlign: 'center', marginTop: 40 }}>
             Start a conversation with {other?.username}

@@ -27,3 +27,9 @@ html {
 input, textarea {
   font-size: 16px !important;
 }
+
+/* Font scale support */
+html {
+  font-size: 16px;
+  transition: font-size 0.2s ease;
+}

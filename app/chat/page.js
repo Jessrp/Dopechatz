@@ -41,6 +41,11 @@ export default function ChatPage() {
     }
     return 'medium'
   })
+
+  useEffect(() => {
+    const scale = FONT_SCALE[fontSize] || 1
+    document.documentElement.style.fontSize = `${scale * 16}px`
+  }, [fontSize])
   const [showHomeRooms, setShowHomeRooms] = useState(true)
   const [showVisitingRooms, setShowVisitingRooms] = useState(true)
   const [deleteRoomTarget, setDeleteRoomTarget] = useState(null)
@@ -305,7 +310,7 @@ export default function ChatPage() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#000', color: '#fff', fontFamily: roomFont, fontSize: `${FONT_SCALE[fontSize] * 16}px` }}>
+    <div style={{ display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#000', color: '#fff', fontFamily: roomFont,  }}>
 
       {sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 10 }} />}
 

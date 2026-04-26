@@ -335,7 +335,7 @@ export default function ChatPage() {
             const rColor = room.theme_color || accent
             return (
               <div key={room.id} onClick={() => { setActiveRoom(room); setIsVisiting(false); setSidebarOpen(false) }}
-                style={{ padding: '12px 18px', cursor: 'pointer', background: isActive ? `${rColor}18` : 'transparent', borderLeft: isActive ? `3px solid ${rColor}` : '3px solid transparent', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: isActive ? rColor : isFreeBlocked ? '#3a3a3a' : '#aaa', transition: 'all 0.15s ease', fontFamily: room.theme_font || 'sans-serif' }}>
+                style={{ padding: '12px 18px', cursor: 'pointer', background: isActive ? `${rColor}18` : 'transparent', borderLeft: isActive ? `3px solid ${rColor}` : '3px solid transparent', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: isFreeBlocked ? '#3a3a3a' : rColor, opacity: isActive ? 1 : 0.5, transition: 'all 0.15s ease', fontFamily: room.theme_font || 'sans-serif' }}>
                 <span>{room.name}</span>
                 {room.is_main && <span style={{ fontSize: 10, color: rColor, opacity: 0.5, marginLeft: 'auto' }}>★</span>}
                 {isFreeBlocked && <span style={{ fontSize: 9, color: '#333', marginLeft: 'auto', border: '1px solid #2a2a2a', borderRadius: 8, padding: '1px 6px' }}>Plus</span>}

@@ -139,7 +139,7 @@ export default function CreateRoomPage() {
   const isPro = profile.tier === 7
 
   return (
-    <div style={{ background: '#000', minHeight: '100vh', color: '#fff', fontFamily: 'sans-serif', padding: '40px 20px' }}>
+    <div style={{ background: '#000', minHeight: '100vh', color: '#fff', fontFamily: 'sans-serif', padding: '40px 20px 120px 20px' }}>
       <button
         onClick={() => router.push('/chat')}
         style={{ background: 'none', border: 'none', color: accent, cursor: 'pointer', fontSize: 14, marginBottom: 32, padding: 0 }}

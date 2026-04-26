@@ -183,6 +183,7 @@ export default function ChatPage() {
       .select('id, username, accent_color, last_seen, status_public, tier, neighborhood_id')
       .eq('status_public', true)
       .eq('is_bot', false)
+      .eq('tier', 7)
       .neq('id', currentUserId)
       .gte('last_seen', oneDayAgo)
       .order('last_seen', { ascending: false })

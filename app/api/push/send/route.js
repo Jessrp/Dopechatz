@@ -13,37 +13,55 @@ export async function POST(req) {
     process.env.VAPID_PRIVATE_KEY
   )
 
-  const { roomId, message, senderUsername } = await req.json()
+  const { roomId, message, senderUsername, recipientId, isDM } = await req.json()
 
-  const { data: room } = await supabase
-    .from('rooms')
-    .select('neighborhood_id, name')
-    .eq('id', roomId)
-    .single()
+  let subs, payload
 
-  if (!room) return Response.json({ error: 'Room not found' }, { status: 404 })
+  if (isDM && recipientId) {
+    // DM notification — send only to recipient
+    const { data: dmSubs } = await supabase
+      .from('push_subscriptions')
+      .select('subscription')
+      .eq('user_id', recipientId)
+    subs = dmSubs
+    payload = JSON.stringify({
+      title: `DM from ${senderUsername}`,
+      body: message,
+      url: '/dm/' + recipientId
+    })
+  } else {
+    const { data: room } = await supabase
+      .from('rooms')
+      .select('neighborhood_id, name')
+      .eq('id', roomId)
+      .single()
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('neighborhood_id', room.neighborhood_id)
+    if (!room) return Response.json({ error: 'Room not found' }, { status: 404 })
 
-  if (!profiles?.length) return Response.json({ ok: true })
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('neighborhood_id', room.neighborhood_id)
 
-  const userIds = profiles.map(p => p.id)
+    if (!profiles?.length) return Response.json({ ok: true })
 
-  const { data: subs } = await supabase
-    .from('push_subscriptions')
-    .select('subscription')
-    .in('user_id', userIds)
+    const userIds = profiles.map(p => p.id)
+
+    const { data: roomSubs } = await supabase
+      .from('push_subscriptions')
+      .select('subscription')
+      .in('user_id', userIds)
+    subs = roomSubs
+    payload = JSON.stringify({
+      title: `${senderUsername} in ${room.name}`,
+      body: message,
+      url: '/chat'
+    })
+  }
 
   if (!subs?.length) return Response.json({ ok: true })
 
-  const payload = JSON.stringify({
-    title: `${senderUsername} in ${room.name}`,
-    body: message,
-    url: '/chat'
-  })
+
 
   await Promise.allSettled(
     subs.map(sub => webpush.sendNotification(JSON.parse(sub.subscription), payload))

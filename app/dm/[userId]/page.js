@@ -141,6 +141,19 @@ export default function DMPage() {
       destruct_mode: destructMode, expires_at: expiresAt,
     })
     if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); setInput(optimistic.content) }
+    else {
+      fetch('/api/push/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: null,
+          recipientId: userId,
+          message: optimistic.content,
+          senderUsername: profile.username,
+          isDM: true
+        })
+      })
+    }
   }
 
   function isActive(user) {

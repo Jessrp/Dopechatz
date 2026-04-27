@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
-const DESTRUCT_OPTIONS = [
+const BURN_OPTIONS = [
   { label: 'Off', value: null },
   { label: 'On read', value: 'on_read' },
   { label: '5 min', value: '5m' },
@@ -12,12 +12,12 @@ const DESTRUCT_OPTIONS = [
   { label: '24 hr', value: '24h' },
 ]
 
-function destructLabel(val) {
-  const o = DESTRUCT_OPTIONS.find(d => d.value === val)
+function burnLabel(val) {
+  const o = BURN_OPTIONS.find(d => d.value === val)
   return o ? o.label : 'Off'
 }
 
-function expiresAtFromOption(option) {
+function expiresAtFromBurn(option) {
   if (!option || option === 'on_read') return null
   const map = { '5m': 5 * 60 * 1000, '1h': 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000 }
   return new Date(Date.now() + map[option]).toISOString()
@@ -43,8 +43,8 @@ export default function DMPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [accent, setAccent] = useState('#3b82f6')
-  const [destructMode, setDestructMode] = useState(null)
-  const [showDestructPicker, setShowDestructPicker] = useState(false)
+  const [burnMode, setBurnMode] = useState(null)
+  const [showBurnPicker, setShowBurnPicker] = useState(false)
   const [, forceUpdate] = useState(0)
   const bottomRef = useRef(null)
   const tickRef = useRef(null)
@@ -128,17 +128,17 @@ export default function DMPage() {
 
   async function sendMessage() {
     if (!input.trim()) return
-    const expiresAt = expiresAtFromOption(destructMode)
+    const expiresAt = expiresAtFromBurn(burnMode)
     const optimistic = {
       id: `temp-${Date.now()}`, sender_id: profile.id, receiver_id: userId,
       content: input.trim(), created_at: new Date().toISOString(),
-      destruct_mode: destructMode, expires_at: expiresAt, seen_at: null
+      destruct_mode: burnMode, expires_at: expiresAt, seen_at: null
     }
     setMessages(prev => [...prev, optimistic])
     setInput('')
     const { error } = await supabase.from('direct_messages').insert({
       sender_id: profile.id, receiver_id: userId, content: optimistic.content,
-      destruct_mode: destructMode, expires_at: expiresAt,
+      destruct_mode: burnMode, expires_at: expiresAt,
     })
     if (error) { setMessages(prev => prev.filter(m => m.id !== optimistic.id)); setInput(optimistic.content) }
     else {
@@ -187,19 +187,19 @@ export default function DMPage() {
           <div style={{ fontWeight: 700, fontSize: 15, color: otherAccent }}>{other?.username}</div>
           <div style={{ fontSize: 11, color: '#444' }}>{isActive(other) ? 'Active now' : 'Offline'}</div>
         </div>
-        <div onClick={() => setShowDestructPicker(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${destructMode ? '#ff6b6b44' : '#333'}`, background: destructMode ? '#1f0a0a' : '#1a1a1a' }}>
-          <span style={{ fontSize: 13 }}>💣</span>
-          <span style={{ fontSize: 11, color: destructMode ? '#ff6b6b' : '#555', fontWeight: 600 }}>{destructLabel(destructMode)}</span>
+        <div onClick={() => setShowBurnPicker(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${burnMode ? '#ff6b6b44' : '#333'}`, background: burnMode ? '#1f0a0a' : '#1a1a1a' }}>
+          <span style={{ fontSize: 13 }}>🔥</span>
+          <span style={{ fontSize: 11, color: burnMode ? '#ff6b6b' : '#555', fontWeight: 600 }}>{burnMode ? burnLabel(burnMode) : 'Burn'}</span>
         </div>
       </div>
 
       {/* Destruct picker - fixed height when shown */}
-      {showDestructPicker && (
+      {showBurnPicker && (
         <div style={{ flexShrink: 0, background: '#111', borderBottom: `1px solid #ff6b6b22`, padding: '10px 16px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ width: '100%', fontSize: 11, color: '#555', marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Self-destruct after</div>
-          {DESTRUCT_OPTIONS.map(opt => (
-            <div key={opt.label} onClick={() => { setDestructMode(opt.value); setShowDestructPicker(false) }}
-              style={{ padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${destructMode === opt.value ? '#ff6b6b' : '#333'}`, background: destructMode === opt.value ? '#ff6b6b18' : '#1a1a1a', color: destructMode === opt.value ? '#ff6b6b' : '#666', fontSize: 13, fontWeight: 600 }}>
+          <div style={{ width: '100%', fontSize: 11, color: '#555', marginBottom: 4, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Burn after reading</div>
+          {BURN_OPTIONS.map(opt => (
+            <div key={opt.label} onClick={() => { setBurnMode(opt.value); setShowBurnPicker(false) }}
+              style={{ padding: '7px 14px', borderRadius: 8, cursor: 'pointer', border: `1px solid ${burnMode === opt.value ? '#ff6b6b' : '#333'}`, background: burnMode === opt.value ? '#ff6b6b18' : '#1a1a1a', color: burnMode === opt.value ? '#ff6b6b' : '#666', fontSize: 13, fontWeight: 600 }}>
               {opt.label}
             </div>
           ))}
@@ -224,9 +224,9 @@ export default function DMPage() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
                 <span style={{ fontSize: 10, color: '#333' }}>{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                {isOnRead && !msg.seen_at && <span style={{ fontSize: 10, color: '#ff6b6b' }}>💣 vanishes on read</span>}
-                {isOnRead && msg.seen_at && <span style={{ fontSize: 10, color: '#ff6b6b88' }}>💨 vanishing...</span>}
-                {isTimed && msg.expires_at && <span style={{ fontSize: 10, color: '#ff6b6b', fontFamily: 'monospace' }}>💣 {timeLeft(msg.expires_at)}</span>}
+                {isOnRead && !msg.seen_at && <span style={{ fontSize: 10, color: '#ff6b6b' }}>🔥 burns after reading</span>}
+                {isOnRead && msg.seen_at && <span style={{ fontSize: 10, color: '#ff6b6b88' }}>💨 burning...</span>}
+                {isTimed && msg.expires_at && <span style={{ fontSize: 10, color: '#ff6b6b', fontFamily: 'monospace' }}>🔥 {timeLeft(msg.expires_at)}</span>}
                 {isMe && !hasDestruct && <span style={{ fontSize: 10, color: msg.seen_at ? accent : '#333' }}>{msg.seen_at ? '✓✓' : '✓'}</span>}
               </div>
             </div>
@@ -236,17 +236,17 @@ export default function DMPage() {
       </div>
 
       {/* Input bar - fixed height at bottom */}
-      <div style={{ flexShrink: 0, padding: '10px 12px', borderTop: `1px solid ${destructMode ? '#ff6b6b22' : accent + '22'}`, display: 'flex', gap: 8, background: '#111' }}>
+      <div style={{ flexShrink: 0, padding: '10px 12px', borderTop: `1px solid ${burnMode ? '#ff6b6b22' : accent + '22'}`, display: 'flex', gap: 8, background: '#111' }}>
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() } }}
-          placeholder={destructMode ? `Message vanishes ${destructLabel(destructMode).toLowerCase()}...` : `Message ${other?.username}...`}
+          placeholder={burnMode ? `Message vanishes ${burnLabel(burnMode).toLowerCase()}...` : `Message ${other?.username}...`}
           rows={2}
-          style={{ flex: 1, padding: '11px 14px', fontSize: 16, border: `1px solid ${destructMode ? '#ff6b6b33' : accent + '33'}`, borderRadius: 10, background: destructMode ? '#110a0a' : '#1a1a1a', color: '#fff', outline: 'none', resize: 'none', lineHeight: '1.4', height: '52px', overflowY: 'auto' }}
+          style={{ flex: 1, padding: '11px 14px', fontSize: 16, border: `1px solid ${burnMode ? '#ff6b6b33' : accent + '33'}`, borderRadius: 10, background: burnMode ? '#110a0a' : '#1a1a1a', color: '#fff', outline: 'none', resize: 'none', lineHeight: '1.4', height: '52px', overflowY: 'auto' }}
         />
-        <button onClick={sendMessage} style={{ padding: '11px 20px', background: destructMode ? '#ff6b6b' : accent, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0, alignSelf: 'flex-end' }}>
-          {destructMode ? '💣' : 'Send'}
+        <button onClick={sendMessage} style={{ padding: '11px 20px', background: burnMode ? '#ff6b6b' : accent, color: '#000', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 800, fontSize: 14, flexShrink: 0, alignSelf: 'flex-end' }}>
+          {burnMode ? '🔥' : 'Send'}
         </button>
       </div>
     </div>

@@ -31,12 +31,12 @@ const sections = [
   {
     emoji: '✉️',
     title: 'Direct Messages (Pro)',
-    content: 'Pro members can send direct messages to other Pro members. Tap any active user in the sidebar, or visit your Contacts list to message people you\'ve talked to before. DMs support self-destructing messages.'
+    content: 'Pro members can send direct messages to other Pro members. Tap any active user in the sidebar, or visit your Contacts list to message people you\'ve talked to before. DMs support Burn After Reading messages.'
   },
   {
-    emoji: '💣',
+    emoji: '🔥',
     title: 'Self-Destructing Messages (Pro)',
-    content: 'In any DM conversation, tap the 💣 button at the top to set a self-destruct timer. Choose "On read" to vanish after the recipient opens it, or set a time limit (5 min, 1hr, 24hr). The send button turns red when destruct mode is on.'
+    content: 'In any DM conversation, tap the 🔥 button at the top to set a Burn After Reading timer. Choose "On read" to vanish after the recipient opens it, or set a time limit (5 min, 1hr, 24hr). The send button turns red when destruct mode is on.'
   },
   {
     emoji: '🗑️',

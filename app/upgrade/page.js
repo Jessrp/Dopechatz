@@ -176,7 +176,7 @@ export default function UpgradePage() {
             'Create up to 2 Secret Rooms — invisible to Free & Plus',
             'Secret Rooms auto-vanish after 24hrs with live countdown',
             'Direct message other Pro members',
-            'Self-destructing messages — timed or on-read',
+            'Burn After Reading messages — timed or on-read',
             'Everything in Plus',
           ].map(item => (
             <li key={item} style={{ fontSize: 13, color: proColor + 'bb', padding: '4px 0', paddingLeft: 16, position: 'relative' }}>

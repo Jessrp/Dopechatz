@@ -56,6 +56,11 @@ export default function ChatPage() {
   useEffect(() => { loadProfile() }, [])
 
   useEffect(() => {
+    const scale = { small: 0.85, medium: 1, large: 1.2 }[fontSize] || 1
+    document.documentElement.style.fontSize = scale * 16 + 'px'
+  }, [fontSize])
+
+  useEffect(() => {
     if (activeRoom) {
       loadMessages(activeRoom.id)
       const sub = supabase

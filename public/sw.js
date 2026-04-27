@@ -1,10 +1,18 @@
+self.addEventListener('install', function(event) {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', function(event) {
+  event.waitUntil(clients.claim())
+})
+
 self.addEventListener('push', function(event) {
   const data = event.data?.json() || {}
   const title = data.title || 'Dopechatz'
   const options = {
     body: data.body || 'New message in your neighborhood',
-    icon: '/icon.png',
-    badge: '/icon.png',
+    icon: '/icon-192.svg',
+    badge: '/icon-192.svg',
     data: data.url || '/',
     vibrate: [100, 50, 100]
   }

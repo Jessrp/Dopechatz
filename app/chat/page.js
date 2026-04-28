@@ -46,6 +46,8 @@ export default function ChatPage() {
     const scale = FONT_SCALE[fontSize] || 1
     document.documentElement.style.fontSize = `${scale * 16}px`
   }, [fontSize])
+  const [unreadCounts, setUnreadCounts] = useState({})
+  const [totalUnread, setTotalUnread] = useState(0)
   const [showHomeRooms, setShowHomeRooms] = useState(true)
   const [showVisitingRooms, setShowVisitingRooms] = useState(true)
   const [deleteRoomTarget, setDeleteRoomTarget] = useState(null)
@@ -63,6 +65,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (activeRoom) {
       loadMessages(activeRoom.id)
+      if (profile?.id) markRoomRead(activeRoom.id, profile.id)
       const sub = supabase
         .channel(`room:${activeRoom.id}`)
         .on('postgres_changes', {
@@ -139,6 +142,8 @@ export default function ChatPage() {
     setHomeNeighborhood(homeHood)
     await loadRooms(prof, homeHood)
     await loadActiveUsers(homeHood?.id || prof.neighborhood_id, prof.id)
+    const { data: visibleRooms } = await supabase.from('rooms').select('id').eq('neighborhood_id', homeHood?.id || prof.neighborhood_id)
+    await loadUnreadCounts(prof.id, visibleRooms || [])
 
     const { hood: currentHood } = await detectCurrentNeighborhood()
     if (currentHood && currentHood.id !== (prof.home_neighborhood_id || prof.neighborhood_id)) {
@@ -199,6 +204,30 @@ export default function ChatPage() {
       .order('last_seen', { ascending: false })
       .limit(20)
     setActiveUsers(data || [])
+  }
+
+  async function loadUnreadCounts(userId, roomList) {
+    const { data: reads } = await supabase.from('room_reads').select('room_id, last_read_at').eq('user_id', userId)
+    const readMap = {}
+    reads?.forEach(r => { readMap[r.room_id] = r.last_read_at })
+    const counts = {}
+    let total = 0
+    for (const room of (roomList || [])) {
+      const lastRead = readMap[room.id]
+      let q = supabase.from('messages').select('*', { count: 'exact', head: true }).eq('room_id', room.id).neq('user_id', userId)
+      if (lastRead) q = q.gt('created_at', lastRead)
+      const { count } = await q
+      counts[room.id] = count || 0
+      total += count || 0
+    }
+    setUnreadCounts(counts)
+    setTotalUnread(total)
+  }
+
+  async function markRoomRead(roomId, userId) {
+    await supabase.from('room_reads').upsert({ user_id: userId, room_id: roomId, last_read_at: new Date().toISOString() })
+    setUnreadCounts(prev => ({ ...prev, [roomId]: 0 }))
+    setTotalUnread(prev => Math.max(0, prev - (unreadCounts[roomId] || 0)))
   }
 
   async function loadVisitingRooms(hood) {
@@ -467,6 +496,9 @@ export default function ChatPage() {
           {profile?.tier === 7 && (
             <button onClick={() => router.push('/contacts')} style={{ width: '100%', padding: '8px', fontSize: 12, color: '#ce93d8', background: 'none', border: '1px solid #ce93d844', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>💬 Contacts</button>
           )}
+          <button onClick={() => router.push('/inbox')} style={{ width: '100%', padding: '8px', fontSize: 12, color: totalUnread > 0 ? '#ff4444' : '#555', background: 'none', border: `1px solid ${totalUnread > 0 ? '#ff444433' : '#222'}`, borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <span>📬 Inbox</span>{totalUnread > 0 && <span style={{ background: '#ff4444', color: '#fff', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 800 }}>{totalUnread}</span>}
+          </button>
           <button onClick={() => router.push('/help')} style={{ width: '100%', padding: '8px', fontSize: 12, color: '#555', background: 'none', border: '1px solid #222', borderRadius: 6, cursor: 'pointer', marginBottom: 8, display: 'block' }}>? Help & Features</button>
           <button
             onClick={() => {

@@ -103,6 +103,10 @@ export default function DMPage() {
 
   async function markSeen(msgId) {
     await supabase.from('direct_messages').update({ seen_at: new Date().toISOString() }).eq('id', msgId).is('seen_at', null)
+    // Remove on_read messages from UI after 3 seconds
+    setTimeout(() => {
+      setMessages(prev => prev.filter(m => m.id !== msgId))
+    }, 3000)
   }
 
   async function loadData() {
@@ -122,7 +126,17 @@ export default function DMPage() {
     const live = (msgs || []).filter(m => !m.expires_at || new Date(m.expires_at) > now)
     setMessages(live)
     const unread = live.filter(m => m.sender_id === userId && m.destruct_mode === 'on_read' && !m.seen_at)
-    for (const m of unread) await markSeen(m.id)
+    for (const m of unread) {
+      await markSeen(m.id)
+    }
+    // Also remove any already-seen on_read messages that haven't been cleaned up
+    const alreadySeen = live.filter(m => m.destruct_mode === 'on_read' && m.seen_at)
+    if (alreadySeen.length > 0) {
+      setMessages(prev => prev.filter(m => !alreadySeen.find(s => s.id === m.id)))
+      for (const m of alreadySeen) {
+        await supabase.from('direct_messages').delete().eq('id', m.id)
+      }
+    }
     setLoading(false)
   }
 

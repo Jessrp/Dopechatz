@@ -49,6 +49,8 @@ export default function DMPage() {
   const bottomRef = useRef(null)
   const tickRef = useRef(null)
   const messagesRef = useRef(null)
+  const pressTimer = useRef(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => { loadData() }, [userId])
 
@@ -140,6 +142,21 @@ export default function DMPage() {
     setLoading(false)
   }
 
+  async function deleteMessage(msgId) {
+    setDeleteTarget(null)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+    await supabase.from('direct_messages').delete().eq('id', msgId).eq('sender_id', profile.id)
+  }
+
+  function handlePressStart(msg) {
+    if (msg.sender_id !== profile?.id) return
+    pressTimer.current = setTimeout(() => setDeleteTarget(msg.id), 500)
+  }
+
+  function handlePressEnd() {
+    clearTimeout(pressTimer.current)
+  }
+
   async function sendMessage() {
     if (!input.trim()) return
     const expiresAt = expiresAtFromBurn(burnMode)
@@ -220,6 +237,20 @@ export default function DMPage() {
         </div>
       )}
 
+      {/* Delete confirmation overlay */}
+      {deleteTarget && (
+        <div onClick={() => setDeleteTarget(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 50, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0 0 40px' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 16, padding: '24px 20px', width: '100%', maxWidth: 360, margin: '0 16px' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Delete message?</div>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 24 }}>This removes the message for everyone. Cannot be undone.</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDeleteTarget(null)} style={{ flex: 1, padding: '12px', background: 'none', border: '1px solid #333', borderRadius: 10, color: '#aaa', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => deleteMessage(deleteTarget)} style={{ flex: 1, padding: '12px', background: '#ff4444', border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer' }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Messages - takes all remaining space, scrollable */}
       <div ref={messagesRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', WebkitOverflowScrolling: 'touch' }}>
         {messages.length === 0 && (
@@ -232,7 +263,14 @@ export default function DMPage() {
           const isDestructing = isOnRead && msg.seen_at
           const hasDestruct = !!msg.destruct_mode
           return (
-            <div key={msg.id} style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+            <div key={msg.id}
+              onTouchStart={() => handlePressStart(msg)}
+              onTouchEnd={handlePressEnd}
+              onTouchMove={handlePressEnd}
+              onMouseDown={() => handlePressStart(msg)}
+              onMouseUp={handlePressEnd}
+              onMouseLeave={handlePressEnd}
+              style={{ marginBottom: 14, display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', userSelect: 'none' }}>
               <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: isMe ? (hasDestruct ? '#2a0a0a' : accent) : '#1a1a1a', color: isMe ? (hasDestruct ? '#ff6b6b' : '#000') : otherAccent, fontSize: 15, lineHeight: 1.4, border: isMe ? (hasDestruct ? '1px solid #ff6b6b44' : 'none') : (hasDestruct ? `1px solid #ff6b6b33` : `1px solid ${otherAccent}22`), opacity: isDestructing ? 0.4 : 1, transition: 'opacity 0.5s ease' }}>
                 {msg.content}
               </div>

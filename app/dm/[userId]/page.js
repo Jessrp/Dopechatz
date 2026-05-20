@@ -80,6 +80,9 @@ export default function DMPage() {
         if ((msg.sender_id === profile.id && msg.receiver_id === userId) ||
             (msg.sender_id === userId && msg.receiver_id === profile.id)) {
           setMessages(prev => {
+            // Replace optimistic temp message if exists
+            const tempExists = prev.find(m => m.id.startsWith('temp-') && m.content === msg.content && m.sender_id === msg.sender_id)
+            if (tempExists) return prev.map(m => m.id === tempExists.id ? msg : m)
             const exists = prev.find(m => m.id === msg.id)
             if (exists) return prev
             return [...prev, msg]

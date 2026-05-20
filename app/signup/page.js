@@ -56,7 +56,7 @@ export default function SignupPage() {
           email: email
         })
         if (profileError) { setError(profileError.message); setStep('username'); setLoading(false); return }
-        router.push('/onboarding')
+        router.push('/chat')
       },
       () => {
         setError('Location access is required. Please enable it and try again.')

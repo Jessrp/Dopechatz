@@ -138,11 +138,51 @@ export default function ChatPage() {
     setProfile(prof)
     if (prof.accent_color) { setAccent(prof.accent_color); setHue(hexToHue(prof.accent_color)) }
 
-    const { data: homeHood } = await supabase.from('neighborhoods').select('*').eq('id', prof.home_neighborhood_id || prof.neighborhood_id).single()
+    // Run all initial queries in parallel
+    const neighborhoodId = prof.home_neighborhood_id || prof.neighborhood_id
+    const [
+      { data: homeHood },
+      roomsResult,
+      locationResult
+    ] = await Promise.all([
+      supabase.from('neighborhoods').select('*').eq('id', neighborhoodId).single(),
+      supabase.from('rooms').select('*').eq('neighborhood_id', neighborhoodId).order('is_main', { ascending: false }),
+      detectCurrentNeighborhood()
+    ])
+
     setHomeNeighborhood(homeHood)
-    await loadRooms(prof, homeHood)
-    await loadActiveUsers(homeHood?.id || prof.neighborhood_id, prof.id)
-    const { data: visibleRooms } = await supabase.from('rooms').select('id').eq('neighborhood_id', homeHood?.id || prof.neighborhood_id)
+
+    // Process rooms
+    const { data: memberships } = await supabase.from('room_members').select('room_id').eq('user_id', prof.id)
+    const memberRoomIds = memberships?.map(m => m.room_id) || []
+    const visible = (roomsResult.data || []).filter(room => {
+      if (room.is_main) return true
+      if (room.is_secret) return prof.tier === 7 || memberRoomIds.includes(room.id)
+      if (!room.is_private) return true
+      return memberRoomIds.includes(room.id)
+    })
+    setRooms(visible)
+    if (visible.length > 0) setActiveRoom(visible[0])
+
+    // Run remaining queries in parallel
+    const { hood: currentHood } = locationResult
+    const [activeUsersResult, visibleRoomsResult] = await Promise.all([
+      (async () => {
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+        const { data } = await supabase.from('profiles').select('id, username, accent_color, last_seen, status_public, tier, neighborhood_id').eq('status_public', true).eq('is_bot', false).eq('tier', 7).neq('id', prof.id).gte('last_seen', oneDayAgo).order('last_seen', { ascending: false }).limit(20)
+        setActiveUsers(data || [])
+      })(),
+      supabase.from('rooms').select('id').eq('neighborhood_id', neighborhoodId)
+    ])
+
+    if (currentHood && currentHood.id !== neighborhoodId) {
+      setCurrentNeighborhood(currentHood)
+      const { data: mainRoom } = await supabase.from('rooms').select('*').eq('neighborhood_id', currentHood.id).eq('is_main', true).single()
+      if (mainRoom) setVisitingRooms([mainRoom])
+    }
+
+    await loadUnreadCounts(prof.id, visibleRoomsResult.data || [])
+    const { data: visibleRooms } = visibleRoomsResult
     await loadUnreadCounts(prof.id, visibleRooms || [])
 
     const { hood: currentHood } = await detectCurrentNeighborhood()

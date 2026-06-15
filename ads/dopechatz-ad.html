@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dopechatz — Your Neighborhood. Unfiltered.</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #080810;
+  color: #f0f0f5;
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.wrap { width: 100%; max-width: 640px; }
+.hero {
+  background: linear-gradient(145deg, #0f0f20 0%, #13132a 60%, #0f1525 100%);
+  border-radius: 20px 20px 0 0;
+  padding: 52px 52px 44px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-bottom: none;
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -100px; right: -100px;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(140,100,255,0.12) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  bottom: -60px; left: 40px;
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(255,60,120,0.07) 0%, transparent 65%);
+  pointer-events: none;
+}
+.pulse { position: absolute; border-radius: 50%; animation: pulse 3s ease-in-out infinite; }
+.pulse.p1 { width: 6px; height: 6px; background: #8c64ff; top: 44px; right: 52px; animation-delay: 0s; }
+.pulse.p2 { width: 4px; height: 4px; background: #ff3c78; top: 72px; right: 80px; animation-delay: 1s; }
+.pulse.p3 { width: 5px; height: 5px; background: #8c64ff; top: 60px; right: 36px; animation-delay: 2s; }
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.4); }
+}
+.logo-row { display: flex; align-items: center; gap: 10px; margin-bottom: 40px; }
+.logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, #8c64ff, #ff3c78); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+.logo-name { font-family: 'Space Mono', monospace; font-size: 15px; font-weight: 700; color: #fff; }
+.logo-name span { background: linear-gradient(90deg, #8c64ff, #ff3c78); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.eyebrow { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; background: linear-gradient(90deg, #8c64ff, #ff3c78); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 16px; }
+.headline { font-family: 'Bebas Neue', sans-serif; font-size: 68px; line-height: 0.9; letter-spacing: -0.5px; color: #fff; margin-bottom: 12px; }
+.headline .grad { background: linear-gradient(90deg, #8c64ff 0%, #ff3c78 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+.tagline { font-size: 16px; color: rgba(255,255,255,0.5); margin-bottom: 36px; line-height: 1.6; max-width: 400px; }
+.tagline strong { color: rgba(255,255,255,0.85); font-weight: 600; }
+.cta-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.btn-main { background: linear-gradient(135deg, #8c64ff, #ff3c78); color: #fff; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 14px 28px; border-radius: 50px; border: none; cursor: pointer; text-decoration: none; display: inline-block; transition: opacity 0.15s, transform 0.15s; }
+.btn-main:hover { opacity: 0.9; transform: scale(1.03); }
+.btn-ghost { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; padding: 13px 24px; border-radius: 50px; border: 1px solid rgba(140,100,255,0.35); color: rgba(255,255,255,0.6); background: transparent; cursor: pointer; text-decoration: none; display: inline-block; }
+.features { background: #0c0c1c; padding: 36px 52px; border-left: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); }
+.features-label { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.2); margin-bottom: 24px; }
+.feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.feat { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 12px; padding: 18px 20px; }
+.feat-icon { font-size: 20px; margin-bottom: 10px; }
+.feat-name { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.feat-desc { font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.5; }
+.tiers { background: #0a0a18; padding: 32px 52px; border-left: 1px solid rgba(255,255,255,0.05); border-right: 1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.04); }
+.tiers-label { font-family: 'Space Mono', monospace; font-size: 10px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.2); margin-bottom: 20px; }
+.tier-row { display: flex; gap: 12px; }
+.tier { flex: 1; padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06); }
+.tier.free { background: rgba(255,255,255,0.02); }
+.tier.plus { background: rgba(140,100,255,0.06); border-color: rgba(140,100,255,0.2); }
+.tier.pro  { background: rgba(255,60,120,0.06);  border-color: rgba(255,60,120,0.2); }
+.tier-name { font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+.tier.plus .tier-name { color: #8c64ff; }
+.tier.pro  .tier-name { color: #ff3c78; }
+.tier-price { font-family: 'Bebas Neue', sans-serif; font-size: 28px; color: #fff; line-height: 1; margin-bottom: 10px; }
+.tier-price sub { font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; color: rgba(255,255,255,0.3); vertical-align: baseline; }
+.tier-perks { display: flex; flex-direction: column; gap: 4px; }
+.tier-perk { font-size: 11px; color: rgba(255,255,255,0.45); }
+.footer { background: #09090f; border-radius: 0 0 20px 20px; padding: 28px 52px; display: flex; align-items: center; justify-content: space-between; border: 1px solid rgba(255,255,255,0.05); border-top: 1px solid rgba(255,255,255,0.04); }
+.footer-note { font-size: 12px; color: rgba(255,255,255,0.25); font-style: italic; max-width: 300px; line-height: 1.5; }
+.early-badge { font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; background: linear-gradient(135deg, rgba(140,100,255,0.15), rgba(255,60,120,0.15)); border: 1px solid rgba(140,100,255,0.3); color: #8c64ff; border-radius: 50px; padding: 7px 14px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="pulse p1"></div>
+    <div class="pulse p2"></div>
+    <div class="pulse p3"></div>
+    <div class="logo-row">
+      <div class="logo-icon">💬</div>
+      <div class="logo-name">Dope<span>chatz</span></div>
+    </div>
+    <div class="eyebrow">— Hyperlocal · Anonymous · Real</div>
+    <div class="headline">Your Hood.<br><span class="grad">Unfiltered.</span></div>
+    <div class="tagline">Anonymous neighborhood chat — no profiles, no algorithms, no drama tax.<br><strong>Just the people and places right around you.</strong></div>
+    <div class="cta-row">
+      <a class="btn-main" href="#">Join for Free →</a>
+      <a class="btn-ghost" href="#">Learn More</a>
+    </div>
+  </div>
+  <div class="features">
+    <div class="features-label">What You Get</div>
+    <div class="feat-grid">
+      <div class="feat"><div class="feat-icon">🕵️</div><div class="feat-name">Fully Anonymous</div><div class="feat-desc">No real name. No profile. Just a vibe and a neighborhood.</div></div>
+      <div class="feat"><div class="feat-icon">📍</div><div class="feat-name">Hyperlocal Rooms</div><div class="feat-desc">Chat with people literally near you — block by block.</div></div>
+      <div class="feat"><div class="feat-icon">🔥</div><div class="feat-name">Secret Rooms</div><div class="feat-desc">24-hour rooms that auto-vanish. No receipts, no trace.</div></div>
+      <div class="feat"><div class="feat-icon">💨</div><div class="feat-name">Self-Destruct DMs</div><div class="feat-desc">Pro DMs that disappear on read. The internet can forget.</div></div>
+    </div>
+  </div>
+  <div class="tiers">
+    <div class="tiers-label">Pick Your Plan</div>
+    <div class="tier-row">
+      <div class="tier free"><div class="tier-name">Free</div><div class="tier-price">$0</div><div class="tier-perks"><div class="tier-perk">✓ Neighborhood rooms</div><div class="tier-perk">✓ Anonymous posting</div><div class="tier-perk">✓ Public chat access</div></div></div>
+      <div class="tier plus"><div class="tier-name">Plus</div><div class="tier-price">$3<sub>/mo</sub></div><div class="tier-perks"><div class="tier-perk">✓ Everything in Free</div><div class="tier-perk">✓ Secret Rooms</div><div class="tier-perk">✓ Custom room themes</div></div></div>
+      <div class="tier pro"><div class="tier-name">Pro</div><div class="tier-price">$7<sub>/mo</sub></div><div class="tier-perks"><div class="tier-perk">✓ Everything in Plus</div><div class="tier-perk">✓ Self-destruct DMs</div><div class="tier-perk">✓ Priority features</div></div></div>
+    </div>
+  </div>
+  <div class="footer">
+    <div class="footer-note">We're just getting started — early users are shaping what this becomes. Come get weird with us.</div>
+    <div class="early-badge">Early Access</div>
+  </div>
+</div>
+</body>
+</html>
